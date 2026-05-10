@@ -1,0 +1,299 @@
+\documentclass[aspectratio=169]{beamer}
+
+\usepackage{ctex}
+\usepackage{amsmath, amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{hyperref}
+\usepackage{xcolor}
+
+\usetheme{Madrid}
+\usecolortheme{seahorse}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}[frame number]
+\hypersetup{hidelinks}
+
+\definecolor{QuantumBlue}{HTML}{153A5B}
+\definecolor{QuantumTeal}{HTML}{1C8C87}
+\definecolor{QuantumGold}{HTML}{C8912F}
+\setbeamercolor{structure}{fg=QuantumBlue}
+\setbeamercolor{frametitle}{fg=white,bg=QuantumBlue}
+\setbeamercolor{title}{fg=white,bg=QuantumBlue}
+\setbeamercolor{block title}{fg=white,bg=QuantumTeal}
+\setbeamercolor{block body}{bg=QuantumTeal!6}
+
+\newcommand{\term}[1]{\textcolor{QuantumBlue}{\textbf{#1}}}
+\newcommand{\warning}[1]{\textcolor{QuantumGold}{\textbf{#1}}}
+
+\title[量化优化赛题解析]{上海·徐汇量子黑客松 2026\\量化优化赛题解析}
+\subtitle{【量化优化】混合整数带约束优化问题}
+\author{平步青云团队内部讨论材料}
+\date{2026年5月10日}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+  \vspace{-0.5em}
+  \begin{center}
+    \footnotesize 来源：OSCHINA 量子黑客松官网公开信息；具体题目、数据集与量子计算云平台以官方后续开放为准。
+  \end{center}
+\end{frame}
+
+\begin{frame}{目录}
+  \tableofcontents
+\end{frame}
+
+\section{赛题一句话理解}
+
+\begin{frame}{官网给出的赛题信息}
+\small
+\begin{block}{我们报名的赛道}
+  \term{【量化优化】混合整数带约束优化问题}
+\end{block}
+
+\begin{itemize}
+  \item 核心任务：利用\term{量子-经典混合算法}求解\term{混合整数优化问题}，包括 MILP / MIQP。
+  \item 难点来源：整数决策变量会让搜索空间呈\term{指数级膨胀}。
+  \item 官方应用场景：电力系统机组组合、工业排产调度、物流路径规划、金融投资组合优化。
+  \item 官方提交要求：运行结果、建模过程思路说明、源代码与 Readme，代码尽可能一键运行。
+\end{itemize}
+
+\vspace{0.4em}
+\warning{当前限制：}具体数学实例、数据集、云平台接口尚未开放，所以现在不能锁死最终算法，只能先准备可迁移的方法框架。
+\end{frame}
+
+\begin{frame}{给门外汉的类比}
+\small
+\begin{block}{把问题想成“在一堆开关中找最省钱的组合”}
+  每个开关代表一个决定：开不开机组、派不派车辆、买不买某个资产、某个订单排在哪台机器上。
+\end{block}
+
+\begin{itemize}
+  \item \term{目标函数}：我们想优化的东西，例如成本最低、收益最高、误差最小。
+  \item \term{约束条件}：必须遵守的规则，例如电力必须够用、车辆不能超载、预算不能超。
+  \item \term{整数变量}：不是连续滑动条，而是 0/1、1/2/3 这种离散选择。
+  \item 难点：100 个 0/1 开关就有 $2^{100}$ 种组合，暴力枚举几乎不可行。
+\end{itemize}
+\end{frame}
+
+\section{关键名词解释}
+
+\begin{frame}{什么是 MILP / MIQP？}
+\small
+\begin{columns}[T]
+\begin{column}{0.50\textwidth}
+\begin{block}{MILP：混合整数线性规划}
+\[
+  \min_x \; c^\top x
+\]
+\[
+  \text{s.t.}\quad Ax \le b,\quad x_i \in \{0,1\}\ \text{或整数}
+\]
+\end{block}
+\end{column}
+\begin{column}{0.50\textwidth}
+\begin{block}{MIQP：混合整数二次规划}
+\[
+  \min_x \; x^\top Qx + c^\top x
+\]
+\[
+  \text{s.t.}\quad Ax \le b,\quad x_i \in \{0,1\}\ \text{或整数}
+\]
+\end{block}
+\end{column}
+\end{columns}
+
+\vspace{0.6em}
+\begin{itemize}
+  \item ``混合''：变量里既有连续变量，也有整数变量。
+  \item ``整数''：很多关键决策必须是离散值，不能取 0.37 台机器、0.52 辆车。
+  \item ``带约束''：不是只找最优，还要保证方案合法。
+\end{itemize}
+\end{frame}
+
+\begin{frame}{为什么整数变量会让问题爆炸？}
+\small
+\begin{itemize}
+  \item 如果有 $n$ 个二进制变量，每个变量只有 0/1 两种选择。
+  \item 总组合数是 $2^n$。
+  \item $n=10$ 时有 1024 种，电脑很轻松。
+  \item $n=50$ 时约 $1.13\times 10^{15}$ 种，已经非常大。
+  \item $n=100$ 时约 $1.27\times 10^{30}$ 种，暴力搜索基本不现实。
+\end{itemize}
+
+\begin{block}{比赛真正想考什么}
+  不是会不会枚举，而是能不能把问题建模好，并用量子/量子启发/混合算法在巨大搜索空间里更聪明地找好解。
+\end{block}
+\end{frame}
+
+\begin{frame}{什么是量子-经典混合算法？}
+\small
+\begin{block}{直观理解}
+  经典计算机负责组织流程、更新参数、处理数据；量子线路或量子模拟器负责生成候选解、估计能量或探索组合空间。两者循环配合。
+\end{block}
+
+\begin{enumerate}
+  \item 经典端把优化问题编码成量子线路、QUBO 或 Ising 形式。
+  \item 量子端运行线路，采样一批候选解或估计目标函数。
+  \item 经典端根据结果更新参数。
+  \item 重复迭代，直到找到足够好的可行解。
+\end{enumerate}
+
+\vspace{0.4em}
+常见思路包括 QAOA、VQE、量子退火、量子启发优化、经典-量子混合局部搜索等。
+\end{frame}
+
+\begin{frame}{QUBO / Ising 是什么作用？}
+\small
+\begin{block}{QUBO：把约束优化翻译成“二进制变量的二次函数”}
+\[
+  \min_{x\in\{0,1\}^n} \; x^\top Qx
+\]
+\end{block}
+
+\begin{itemize}
+  \item 很多量子优化算法更喜欢吃 QUBO / Ising 这种格式。
+  \item 原问题里的约束可以通过罚函数加入目标：违反规则就给很大惩罚。
+  \item 好处：形式统一，容易送进 QAOA、退火或采样器。
+  \item 风险：罚函数权重不好调，可能出现“目标很好但约束违法”的假好解。
+\end{itemize}
+\end{frame}
+
+\section{应用场景}
+
+\begin{frame}{场景 1：电力系统机组组合}
+\small
+\begin{block}{问题是什么？}
+  明天每个时段哪些发电机开机、关机、发多少电，才能满足负荷并让总成本最低？
+\end{block}
+
+\begin{itemize}
+  \item 整数变量：某台机组在某时段开或关。
+  \item 连续变量：开机后具体发多少电。
+  \item 约束：供电必须满足需求，机组有最小/最大出力、爬坡限制、启停限制、备用容量。
+  \item 难点：机组数量和时间段一多，组合数量迅速爆炸。
+\end{itemize}
+\end{frame}
+
+\begin{frame}{场景 2：工业排产调度}
+\small
+\begin{block}{问题是什么？}
+  一批订单要分配到多台机器上，决定先做哪个、后做哪个，尽量减少延期、换线成本和空闲时间。
+\end{block}
+
+\begin{itemize}
+  \item 整数变量：订单分配到哪台机器、工序顺序是什么。
+  \item 约束：机器一次只能做一个任务，工序有先后关系，交付时间有限制。
+  \item 难点：排列组合巨大，而且现实规则很多。
+  \item 比赛启发：如果赛题给调度数据，重点要先建模，再做可行解修复和结果可视化。
+\end{itemize}
+\end{frame}
+
+\begin{frame}{场景 3：物流路径规划}
+\small
+\begin{block}{问题是什么？}
+  多辆车从仓库出发，服务一批客户，怎样安排路线让总距离/成本最低？
+\end{block}
+
+\begin{itemize}
+  \item 整数变量：车辆是否从地点 $i$ 去地点 $j$。
+  \item 约束：每个客户必须服务一次，车辆容量有限，可能还有时间窗。
+  \item 难点：路径组合数量极大，约束稍微一复杂就很难精确求解。
+  \item 可展示点：路线图、成本下降曲线、约束违反率。
+\end{itemize}
+\end{frame}
+
+\begin{frame}{场景 4：金融投资组合优化}
+\small
+\begin{block}{问题是什么？}
+  在预算和风险限制下，选择哪些资产、买多少，使收益和风险达到更优平衡。
+\end{block}
+
+\begin{itemize}
+  \item 整数变量：是否选择某个资产、是否满足持仓数量限制。
+  \item 连续变量：资产权重。
+  \item 二次项来源：资产之间的协方差，代表组合风险。
+  \item MIQP 很常见：收益是线性的，风险通常是二次型。
+\end{itemize}
+\end{frame}
+
+\section{赛题预判}
+
+\begin{frame}{我们现在不能确定什么？}
+\small
+\begin{itemize}
+  \item 赛题是纯数学 benchmark，还是某个具体行业场景。
+  \item 数据规模是小规模精确求解，还是中大规模近似求解。
+  \item 云平台提供的是门级量子模拟、量子退火接口，还是统一封装 API。
+  \item 是否要求必须用真实量子线路，还是允许量子启发/混合算法。
+  \item 评分更看重最优值、运行时间、可行率、创新性，还是展示效果。
+\end{itemize}
+
+\begin{block}{所以准备阶段的原则}
+  不赌单一路线，先准备“建模 + 经典基线 + QUBO 转换 + 混合优化 + 可视化展示”的通用流水线。
+\end{block}
+\end{frame}
+
+\begin{frame}{可能出现的两类题型}
+\small
+\begin{columns}[T]
+\begin{column}{0.48\textwidth}
+\begin{block}{A. 数学优化题}
+  给出矩阵、变量、约束和目标函数，让我们直接求解 MILP / MIQP。
+\end{block}
+\begin{itemize}
+  \item 重点：解析输入、构造 QUBO/Ising。
+  \item 输出：目标值、可行性、运行时间、对比基线。
+\end{itemize}
+\end{column}
+
+\begin{column}{0.48\textwidth}
+\begin{block}{B. 具体场景题}
+  给出电力、物流、调度或金融背景数据，需要先抽象成优化模型。
+\end{block}
+\begin{itemize}
+  \item 重点：建模能力和业务解释。
+  \item 输出：方案、成本、约束满足、可视化 Demo。
+\end{itemize}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{我们建议的技术路线}
+\small
+\begin{enumerate}
+  \item \term{先做经典基线}：贪心、局部搜索、模拟退火、MILP/MIQP 求解器小规模验证。
+  \item \term{再做量子映射}：把整数变量和约束转成 QUBO / Ising。
+  \item \term{加入混合优化}：QAOA / 退火 / 量子启发采样 + 经典参数更新。
+  \item \term{约束修复}：对量子采样出的非法解做 repair，保证提交结果可用。
+  \item \term{可视化呈现}：目标值曲线、可行率、与基线对比、行业图示。
+\end{enumerate}
+
+\begin{block}{一句话}
+  不要只说“用了量子算法”，要证明它在搜索空间、可行解质量或展示效果上带来价值。
+\end{block}
+\end{frame}
+
+\begin{frame}{开会时可以这样讲}
+\small
+\begin{itemize}
+  \item 这题本质是：在很多离散选择里找一个满足规则的最优组合。
+  \item 难点不是公式长，而是组合爆炸，变量一多就不能暴力试。
+  \item 量子-经典混合算法的角色是：用量子端探索候选解，用经典端控制优化流程。
+  \item 目前具体数据和平台还没开放，所以我们先搭通用 pipeline。
+  \item 等题目开放后，杰瑞负责建模和算法选择，清哥负责快速落地代码，龙哥负责展示与路演包装。
+\end{itemize}
+\end{frame}
+
+\begin{frame}{参考信息}
+\small
+\begin{itemize}
+  \item OSCHINA 量子黑客松官网：\url{https://www.oschina.net/quantum-hackathon/}
+  \item 官方赛道描述：量化优化、混合整数带约束优化问题、MILP/MIQP、量子-经典混合算法。
+  \item 官方提交要求：运行结果、建模过程思路说明、源代码与 Readme。
+  \item 官方评审维度：问题定义与场景适配、技术方案与量子匹配度、完成度与验证质量、应用价值与展示效果。
+\end{itemize}
+\end{frame}
+
+\end{document}

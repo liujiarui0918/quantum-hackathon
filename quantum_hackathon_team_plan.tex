@@ -1,0 +1,268 @@
+\documentclass[aspectratio=169]{beamer}
+
+\usepackage{ctex}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{hyperref}
+\usepackage{xcolor}
+
+\usetheme{Madrid}
+\usecolortheme{dolphin}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}[frame number]
+\hypersetup{hidelinks}
+
+\definecolor{PlanNavy}{HTML}{18324A}
+\definecolor{PlanGreen}{HTML}{2A7F62}
+\definecolor{PlanOrange}{HTML}{C46A25}
+\setbeamercolor{structure}{fg=PlanNavy}
+\setbeamercolor{frametitle}{fg=white,bg=PlanNavy}
+\setbeamercolor{title}{fg=white,bg=PlanNavy}
+\setbeamercolor{block title}{fg=white,bg=PlanGreen}
+\setbeamercolor{block body}{bg=PlanGreen!7}
+
+\newcommand{\role}[1]{\textcolor{PlanNavy}{\textbf{#1}}}
+\newcommand{\key}[1]{\textcolor{PlanOrange}{\textbf{#1}}}
+
+\title[团队分工计划]{量子黑客松团队分工计划}
+\subtitle{准备阶段 + 比赛阶段}
+\author{平步青云：杰瑞、清哥、龙哥}
+\date{2026年5月10日}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+  \vspace{-0.5em}
+  \begin{center}
+    \footnotesize 赛道：【量化优化】混合整数带约束优化问题
+  \end{center}
+\end{frame}
+
+\begin{frame}{目录}
+  \tableofcontents
+\end{frame}
+
+\section{团队画像}
+
+\begin{frame}{我们三个人的能力结构}
+\small
+\centering
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{p{1.8cm} p{4.4cm} p{5.4cm}}
+\toprule
+成员 & 背景 & 在比赛中的最佳位置 \\
+\midrule
+杰瑞 & 上海大学研究生；方向：量子信息热力学 / 量子机器学习；ACM ICPC 银牌 & 负责问题理解、文献调研、数学建模、算法路线选择和技术解释。 \\
+清哥 & 大厂后端开发工程师 & 负责工程实现、接口封装、数据处理、算法 demo、可复现运行和提交代码。 \\
+龙哥 & 大厂前端开发工程师 & 负责展示设计、结果可视化、Demo 前端、路演材料和用户视角表达。 \\
+\bottomrule
+\end{tabular}
+\end{frame}
+
+\begin{frame}{总体分工原则}
+\small
+\begin{block}{不是三个人平均分任务，而是按能力拆链路}
+  杰瑞把问题变成模型，清哥把模型变成可运行程序，龙哥把程序结果变成评委能看懂、愿意记住的展示。
+\end{block}
+
+\begin{itemize}
+  \item 比赛提交要求包括：运行结果、建模过程思路说明、源代码与 Readme。
+  \item 评审会看：场景理解、技术方案、完成度、验证质量、应用价值、展示效果。
+  \item 所以我们必须同时准备：算法、工程、展示。
+  \item 当前具体题目、数据集、量子计算云平台未开放，因此下周重点是学习和通用 demo。
+\end{itemize}
+\end{frame}
+
+\section{第一阶段：准备阶段}
+
+\begin{frame}{准备阶段目标}
+\small
+\begin{block}{阶段状态}
+  赛题细节、数据集和量子计算云平台暂未开放，不能提前针对具体数据调参。
+\end{block}
+
+\begin{itemize}
+  \item 建立共同语言：MILP、MIQP、QUBO、Ising、QAOA、量子退火、约束罚函数。
+  \item 准备通用 demo：输入一个小规模混合整数优化问题，能跑出基线和量子/量子启发版本。
+  \item 准备展示模板：一旦题目开放，能快速替换数据、图表和故事线。
+  \item 准备协作接口：杰瑞给模型定义，清哥接公式和伪代码，龙哥接结果字段和展示图。
+\end{itemize}
+\end{frame}
+
+\begin{frame}{准备阶段：杰瑞负责什么}
+\small
+\begin{itemize}
+  \item 大量阅读相关文献和案例，重点看混合整数优化、QUBO 转换、QAOA、退火、约束处理。
+  \item 针对可能题型提前准备建模模板：电力机组组合、排产调度、物流路径、投资组合。
+  \item 梳理算法候选池：经典基线、量子启发、QAOA/VQE/退火、repair 策略。
+  \item 输出给清哥的材料要工程化：变量定义、目标函数、约束、输入输出格式、伪代码。
+  \item 输出给龙哥的材料要可讲解：问题故事、方法亮点、对比指标和可视化建议。
+\end{itemize}
+\end{frame}
+
+\begin{frame}{准备阶段：清哥负责什么}
+\small
+\begin{itemize}
+  \item 尽量理解杰瑞提出的模型和算法，不追求理论全懂，但要能实现。
+  \item 在没有正式数据集和云平台时，先本地实现 demo。
+  \item demo 至少包括：数据读取、目标函数、约束检查、经典基线、QUBO 构造、结果输出。
+  \item 代码结构提前分层：modeling、solver、repair、evaluate、visualization\_data。
+  \item Readme 提前准备好：环境安装、一键运行、输入格式、输出说明。
+\end{itemize}
+\end{frame}
+
+\begin{frame}{准备阶段：龙哥负责什么}
+\small
+\begin{itemize}
+  \item 研究官网提交要求和评审维度，明确最终要展示什么。
+  \item 提前设计展示结构：问题背景、建模方式、算法流程、结果对比、Demo 展示、总结。
+  \item 准备可视化组件草图：成本曲线、可行率、约束违反数、路线图、调度甘特图、资产权重图。
+  \item 准备路演风格：让非量子背景评委也能听懂。
+  \item 跟清哥约定结果 JSON/CSV 格式，避免比赛当天前后端字段对不上。
+\end{itemize}
+\end{frame}
+
+\begin{frame}{准备阶段交付物}
+\small
+\centering
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{p{2.2cm} p{8.2cm}}
+\toprule
+负责人 & 下周建议交付物 \\
+\midrule
+杰瑞 & 赛题知识卡片；MILP/MIQP/QUBO 建模模板；2--3 条可选算法路线；小规模样例。 \\
+清哥 & 本地可运行 demo；经典基线；QUBO 数据结构；约束检查器；初版 Readme。 \\
+龙哥 & 展示大纲；页面/幻灯片视觉草图；结果图模板；路演讲述逻辑。 \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.7em}
+\begin{block}{准备阶段最重要的产物}
+  一个能快速改题目的通用框架，而不是某个固定场景的死代码。
+\end{block}
+\end{frame}
+
+\section{第二阶段：比赛阶段}
+
+\begin{frame}{比赛阶段目标}
+\small
+\begin{block}{阶段状态}
+  题目、数据集、云平台开放后，所有工作都要围绕正式评分标准收敛。
+\end{block}
+
+\begin{itemize}
+  \item 快速读题，判断是数学题还是具体场景题。
+  \item 快速确定变量、目标、约束和评分指标。
+  \item 先跑通可行基线，再迭代量子/量子启发算法。
+  \item 保证最后能提交完整作品：结果、说明、代码、Readme。
+  \item 展示上突出“我们为什么这样建模、为什么这个算法适合、结果比基线好在哪里”。
+\end{itemize}
+\end{frame}
+
+\begin{frame}{比赛阶段：杰瑞负责什么}
+\small
+\begin{itemize}
+  \item 从文献和准备材料中抽丝剥茧，选出最适合正式题目的模型和算法。
+  \item 第一时间定义变量、目标函数、约束和评价指标。
+  \item 与清哥持续沟通，保证数学模型能被正确实现。
+  \item 根据运行结果调整惩罚项、约束修复、混合算法参数。
+  \item 给龙哥提供讲解素材：为什么难、我们怎么建模、算法为什么合理。
+\end{itemize}
+\end{frame}
+
+\begin{frame}{比赛阶段：清哥负责什么}
+\small
+\begin{itemize}
+  \item 接收杰瑞的模型和算法，把准备阶段 demo 快速改成正式题目版本。
+  \item 完成数据解析、求解器接入、量子云平台调用或本地模拟替代。
+  \item 维护可复现实验脚本，避免“本地能跑、提交不能跑”。
+  \item 输出统一结果文件：目标值、约束满足情况、运行时间、候选解、对比基线。
+  \item 比赛末期负责代码整理、Readme、依赖说明和一键运行脚本。
+\end{itemize}
+\end{frame}
+
+\begin{frame}{比赛阶段：龙哥负责什么}
+\small
+\begin{itemize}
+  \item 拿到赛题后，重新思考最适合该题的展示方式。
+  \item 把清哥输出的结果转成评委能快速理解的图。
+  \item 根据具体场景选择展示重点：电力看负荷和成本，物流看路线，排产看甘特图，金融看收益风险。
+  \item 优化路演材料，突出团队背景、技术路线、结果优势和产业价值。
+  \item 最后阶段配合杰瑞压缩表达，保证讲解清楚、有重点、不堆公式。
+\end{itemize}
+\end{frame}
+
+\section{协作机制}
+
+\begin{frame}{比赛当天建议工作流}
+\small
+\begin{enumerate}
+  \item 读题 30--60 分钟：杰瑞主导，清哥和龙哥同步理解。
+  \item 建模 1--2 小时：确定变量、目标、约束、评价指标。
+  \item 基线先跑通：清哥先保证有可行结果，龙哥开始准备展示骨架。
+  \item 量子/混合算法迭代：杰瑞调方法，清哥改代码，龙哥同步接图。
+  \item 最后收敛：冻结最优版本，整理代码和说明，准备路演。
+\end{enumerate}
+\end{frame}
+
+\begin{frame}{三人之间的接口约定}
+\small
+\begin{block}{杰瑞 $\rightarrow$ 清哥}
+  变量表、目标函数、约束列表、伪代码、参数含义、合法性检查规则。
+\end{block}
+
+\begin{block}{清哥 $\rightarrow$ 龙哥}
+  统一结果文件：\texttt{result.json/csv}，包含目标值、可行性、运行时间、基线对比、解的结构。
+\end{block}
+
+\begin{block}{杰瑞 $\rightarrow$ 龙哥}
+  讲解话术：问题为什么难、方法为什么适合、结果为什么有价值。
+\end{block}
+\end{frame}
+
+\begin{frame}{优先级排序}
+\small
+\begin{enumerate}
+  \item \key{可运行}：先保证代码能跑，能产生合法结果。
+  \item \key{可行解}：违反约束的“好结果”不能作为最终答案。
+  \item \key{可对比}：至少有经典基线，才能证明改进。
+  \item \key{可解释}：评委要听懂建模过程和算法逻辑。
+  \item \key{可展示}：结果图要直观，不要只给一堆数字。
+\end{enumerate}
+
+\begin{block}{底线}
+  宁愿方案简单但完整，也不要算法很花但跑不通、讲不清。
+\end{block}
+\end{frame}
+
+\begin{frame}{下周具体安排建议}
+\small
+\centering
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{p{1.6cm} p{3.0cm} p{3.0cm} p{3.0cm}}
+\toprule
+时间 & 杰瑞 & 清哥 & 龙哥 \\
+\midrule
+Day 1--2 & 整理 MILP/MIQP/QUBO 基础和案例 & 搭 demo 项目结构 & 看官网要求，整理展示清单 \\
+Day 3--4 & 准备 2--3 个场景建模模板 & 实现经典基线和约束检查 & 做展示页/图表模板 \\
+Day 5--6 & 设计量子/混合算法候选路线 & 接入 QUBO/采样 demo & 做可视化样例和路演骨架 \\
+Day 7 & 三人联调，模拟一个小题完整跑通 & 整理 Readme 和一键运行 & 整理最终展示流程 \\
+\bottomrule
+\end{tabular}
+\end{frame}
+
+\begin{frame}{一句话总结}
+\small
+\begin{block}{我们的打法}
+  杰瑞负责“想清楚”，清哥负责“跑起来”，龙哥负责“讲漂亮”。
+\end{block}
+
+\begin{itemize}
+  \item 准备阶段：不押题，搭通用能力。
+  \item 比赛阶段：快速收敛到正式题目的评分指标。
+  \item 最终目标：提交一个可运行、可解释、可对比、可展示的完整作品。
+\end{itemize}
+\end{frame}
+
+\end{document}
