@@ -17,3 +17,10 @@ desktop.ini
 node_modules/
 dist/
 build/
+
+# Python local environment/cache
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.egg-info/
