@@ -23,4 +23,9 @@ build/
 __pycache__/
 .pytest_cache/
 *.pyc
+*.py[cod]
+venv/
 *.egg-info/
+
+# Generated demo outputs
+results/

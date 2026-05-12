@@ -1,0 +1,73 @@
+{
+  "name": "sample_assignment",
+  "sense": "maximize",
+  "variables": [
+    {
+      "name": "model_a",
+      "kind": "binary"
+    },
+    {
+      "name": "model_b",
+      "kind": "binary"
+    },
+    {
+      "name": "model_c",
+      "kind": "binary"
+    },
+    {
+      "name": "boost_x",
+      "kind": "binary"
+    },
+    {
+      "name": "boost_y",
+      "kind": "binary"
+    }
+  ],
+  "objective": {
+    "linear": {
+      "model_a": 9.0,
+      "model_b": 6.0,
+      "model_c": 7.0,
+      "boost_x": 3.0,
+      "boost_y": 2.0
+    },
+    "quadratic": [
+      {
+        "variables": [
+          "model_c",
+          "boost_x"
+        ],
+        "coefficient": 1.0
+      }
+    ],
+    "offset": 0.0
+  },
+  "constraints": [
+    {
+      "name": "choose_one_model",
+      "linear": {
+        "model_a": 1.0,
+        "model_b": 1.0,
+        "model_c": 1.0
+      },
+      "sense": "==",
+      "rhs": 1.0,
+      "constraint_type": "exactly_one",
+      "penalty_weight": 15.0
+    },
+    {
+      "name": "resource_budget",
+      "linear": {
+        "model_a": 5.0,
+        "model_b": 3.0,
+        "model_c": 4.0,
+        "boost_x": 2.0,
+        "boost_y": 1.0
+      },
+      "sense": "<=",
+      "rhs": 6.0,
+      "constraint_type": "bounded_sum",
+      "penalty_weight": 20.0
+    }
+  ]
+}
