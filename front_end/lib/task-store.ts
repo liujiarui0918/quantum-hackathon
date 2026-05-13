@@ -161,31 +161,81 @@ function hashSeed(id: string, salt: number) {
   return h;
 }
 
+function mulberry32(seed: number) {
+  let t = seed >>> 0;
+  return () => {
+    t += 0x6d2b79f5;
+    let x = Math.imul(t ^ (t >>> 15), 1 | t);
+    x ^= x + Math.imul(x ^ (x >>> 7), 61 | x);
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 function buildUnitRows(task: Task): UnitResultRow[] {
   const n = Math.max(1, Math.min(12, Math.floor(task.counts)));
   const rows: UnitResultRow[] = [];
   for (let i = 0; i < n; i++) {
     const h = hashSeed(task.id, i + 1);
-    const base = 40 + (h % 180);
+    const rnd = mulberry32(h);
     const series: { t: string; p: number }[] = [];
     const hours = task.period === '48小时' ? 48 : 24;
-    for (let t = 0; t < hours; t++) {
-      const wave = Math.sin((t / 6 + i) * 0.9) * 18;
-      const noise = ((h >> (t % 5)) & 7) - 3;
-      const p = Math.min(
-        task.maxOutput,
-        Math.max(task.minOutput, base + wave + noise),
-      );
-      series.push({ t: `${t + 1}h`, p: Math.round(p * 10) / 10 });
+
+    // 机组启停：每台 1~3 个开机波段，每个波段从 0 升到峰值再降到 0
+    const pulses = Math.min(3, Math.max(1, 1 + Math.floor(rnd() * 3)));
+    const p = new Array<number>(hours).fill(0);
+    let cursor = 0;
+    for (let k = 0; k < pulses && cursor < hours - 2; k++) {
+      const remainPulses = pulses - k;
+      const remainHours = hours - cursor;
+      const minNeed = remainPulses * 3;
+      if (remainHours < minNeed) break;
+
+      const idleMax = Math.max(0, Math.min(5, remainHours - minNeed));
+      const idle = Math.floor(rnd() * (idleMax + 1));
+      cursor += idle;
+      if (cursor >= hours - 2) break;
+
+      const remainHours2 = hours - cursor;
+      const minNeed2 = (remainPulses - 1) * 3;
+      const maxLen = Math.max(3, Math.min(10, remainHours2 - minNeed2));
+      const len = 3 + Math.floor(rnd() * (maxLen - 2));
+
+      const peakBase = task.minOutput + (task.maxOutput - task.minOutput) * (0.55 + rnd() * 0.4);
+      for (let j = 0; j < len && cursor + j < hours; j++) {
+        const x = len <= 1 ? 0 : j / (len - 1); // 0..1
+        // 三角波包络：0 -> 1 -> 0
+        const tri = x <= 0.5 ? x * 2 : (1 - x) * 2;
+        const envelope = Math.pow(Math.max(0, tri), 0.9);
+        const jitter = 1 + (rnd() - 0.5) * 0.08;
+        const val = Math.max(0, Math.min(task.maxOutput, peakBase * envelope * jitter));
+        p[cursor + j] = Math.max(p[cursor + j], val);
+      }
+      cursor += len;
     }
+
+    for (let t = 0; t < hours; t++) {
+      const val = p[t] < 1 ? 0 : p[t];
+      series.push({ t: `${t + 1}h`, p: Math.round(val * 10) / 10 });
+    }
+
     const totalPowerMw = Math.round(series.reduce((s, x) => s + x.p, 0) * 10) / 10;
     const avgMw = totalPowerMw / series.length;
     const energyMwh = (avgMw * series.length) / 1; // 简化：按小时均值近似 MWh
     const totalCo2Ton =
       Math.round(((energyMwh * task.co2Counts) / 1000) * 1000) / 1000;
-    const startCostYuan = Math.round(task.startCosts * (0.85 + (h % 20) / 100));
-    const shutdownCostYuan = Math.round(task.endCosts * (0.9 + (h % 15) / 100));
-    const fuelCostYuan = Math.round(energyMwh * task.fuelCosts * (0.95 + (h % 10) / 200));
+
+    let startCount = 0;
+    let shutdownCount = 0;
+    for (let t = 0; t < series.length; t++) {
+      const prevOn = t > 0 ? series[t - 1].p > 0 : false;
+      const curOn = series[t].p > 0;
+      if (!prevOn && curOn) startCount += 1;
+      if (prevOn && !curOn) shutdownCount += 1;
+    }
+
+    const startCostYuan = Math.round(startCount * task.startCosts * (0.95 + rnd() * 0.1));
+    const shutdownCostYuan = Math.round(shutdownCount * task.endCosts * (0.95 + rnd() * 0.1));
+    const fuelCostYuan = Math.round(energyMwh * task.fuelCosts * (0.96 + rnd() * 0.08));
     const totalCostYuan = startCostYuan + shutdownCostYuan + fuelCostYuan;
     rows.push({
       index: i + 1,

@@ -1,0 +1,62 @@
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.section {
+  border: 1px solid rgba(110, 203, 255, 0.14);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(6, 10, 22, 0.35);
+}
+
+.h3 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  color: rgba(232, 247, 255, 0.86);
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.label {
+  font-size: 12px;
+  color: rgba(138, 164, 191, 0.95);
+}
+
+.input {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(110, 203, 255, 0.22);
+  background: rgba(4, 8, 18, 0.55);
+  color: #e8f7ff;
+  padding: 10px 10px;
+  outline: none;
+}
+
+.input:disabled {
+  opacity: 0.75;
+}
+
+.row2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.row3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .row2,
+  .row3 {
+    grid-template-columns: 1fr;
+  }
+}

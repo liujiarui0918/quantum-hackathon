@@ -130,7 +130,7 @@ export default function TasksPage() {
   };
 
   const openResult = (t: Task) => {
-    window.open(`/tasks/${t.id}/result`, '_blank', 'noopener,noreferrer');
+    window.open(`/scenarios/unit-commitment/tasks/${t.id}/result`, '_blank', 'noopener,noreferrer');
   };
 
   const headerRight = useMemo(

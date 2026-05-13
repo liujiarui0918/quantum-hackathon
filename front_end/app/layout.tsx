@@ -13,7 +13,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <div className="shell">
           <header className="topbar">
             <div className="brand">
-              <h1>发电机组组合量子计算最优解</h1>
+              <h1>量子计算最优解</h1>
               <small>Quantum Hackathon</small>
             </div>
             <nav className="nav">
