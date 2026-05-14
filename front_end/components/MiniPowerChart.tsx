@@ -21,9 +21,9 @@ export function MiniPowerChart({
     if (!el) return;
 
     const large = height >= 120;
-    const labelSize = large ? 11 : height <= 96 ? 8 : 9;
-    const axisStroke = 'rgba(110, 203, 255, 0.38)';
-    const labelFill = 'rgba(138, 164, 191, 0.9)';
+    const labelSize = large ? 11 : height <= 96 ? 9 : 10;
+    const axisStroke = 'var(--line)';
+    const labelFill = 'var(--muted)';
     const compact = height <= 96;
     const appendPadding = compact
       ? [4, 6, 14, 26]
@@ -44,8 +44,8 @@ export function MiniPowerChart({
       autoFit: true,
       smooth: true,
       lineStyle: {
-        stroke: 'rgba(61, 255, 206, 0.95)',
-        lineWidth: large ? 1.6 : compact ? 1.15 : 1.25,
+        stroke: 'var(--accent)',
+        lineWidth: large ? 2.5 : compact ? 1.5 : 2,
       },
       xAxis: {
         line: { style: { stroke: axisStroke } },
@@ -53,21 +53,21 @@ export function MiniPowerChart({
         label: {
           autoHide: true,
           autoRotate: large && !compact,
-          style: { fill: labelFill, fontSize: labelSize },
+          style: { fill: labelFill, fontSize: labelSize, fontWeight: 500 },
         },
       },
       yAxis: {
         line: { style: { stroke: axisStroke } },
         tickLine: { style: { stroke: axisStroke } },
         label: {
-          style: { fill: labelFill, fontSize: labelSize },
+          style: { fill: labelFill, fontSize: labelSize, fontWeight: 500 },
         },
         grid: {
-          line: { style: { stroke: 'rgba(110, 203, 255, 0.12)' } },
+          line: { style: { stroke: 'var(--line)', lineDash: [2, 2] } },
         },
         title: {
           text: 'MW',
-          style: { fill: labelFill, fontSize: labelSize },
+          style: { fill: labelFill, fontSize: labelSize, fontWeight: 600 },
           spacing: 8,
         },
       },
@@ -75,6 +75,16 @@ export function MiniPowerChart({
         showMarkers: false,
         fields: ['t', 'p'],
         formatter: (datum) => ({ name: datum.t, value: `${datum.p} MW` }),
+        domStyles: {
+          'g2-tooltip': {
+            backgroundColor: '#fff',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
+            borderRadius: '8px',
+            border: '1px solid var(--line)',
+            color: 'var(--text)',
+            fontSize: '13px',
+          }
+        }
       },
       annotations: [
         {
@@ -82,9 +92,9 @@ export function MiniPowerChart({
           start: ['min', minRef],
           end: ['max', minRef],
           style: {
-            stroke: 'rgba(110, 203, 255, 0.85)',
+            stroke: 'var(--muted)',
             lineWidth: 1,
-            lineDash: [3, 3],
+            lineDash: [4, 4],
           },
         },
         {
@@ -92,13 +102,14 @@ export function MiniPowerChart({
           start: ['min', maxRef],
           end: ['max', maxRef],
           style: {
-            stroke: 'rgba(255, 77, 79, 0.85)',
+            stroke: 'var(--accent2)',
             lineWidth: 1,
-            lineDash: [3, 3],
+            lineDash: [4, 4],
           },
         },
       ],
     });
+
 
     line.render();
     return () => {

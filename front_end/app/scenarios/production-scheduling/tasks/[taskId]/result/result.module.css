@@ -1,40 +1,48 @@
 .pageTitle {
-  font-size: 16px;
-  font-weight: 900;
-  letter-spacing: 0.14em;
-  margin-bottom: 12px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: 24px;
+  color: var(--text);
 }
 
 .error {
-  border: 1px solid rgba(255, 77, 79, 0.35);
-  background: rgba(255, 77, 79, 0.08);
-  padding: 12px 12px;
+  border: 1px solid #fee2e2;
+  background: #fef2f2;
+  padding: 16px 20px;
   border-radius: 12px;
-  color: rgba(255, 210, 210, 0.95);
+  color: #dc2626;
+  font-size: 14px;
 }
 
 .stack {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 24px;
 }
 
 .section {
-  border: 1px solid rgba(110, 203, 255, 0.14);
-  border-radius: 14px;
-  padding: 12px;
-  background: rgba(4, 8, 18, 0.35);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 24px;
+  background: #ffffff;
+  box-shadow: var(--shadow);
 }
 
 .sectionTitle {
-  font-weight: 900;
-  letter-spacing: 0.12em;
-  margin-bottom: 10px;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: 20px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .block {
-  padding: 10px 0;
-  border-top: 1px dashed rgba(110, 203, 255, 0.14);
+  padding: 20px 0;
+  border-top: 1px solid var(--line);
 }
 
 .block:first-of-type {
@@ -43,94 +51,101 @@
 }
 
 .subTitle {
-  font-size: 12px;
-  color: rgba(138, 164, 191, 0.95);
-  letter-spacing: 0.12em;
-  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 16px;
 }
 
 .taskNameLine {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 0 6px;
-  font-size: 13px;
+  gap: 0 8px;
+  font-size: 15px;
 }
 
 .strong {
-  font-weight: 850;
-  color: rgba(232, 247, 255, 0.98);
+  font-weight: 700;
+  color: var(--text);
 }
 
-/* 每行 3 个信息项 */
 .infoGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  gap: 16px;
   align-items: stretch;
 }
 
-@media (max-width: 960px) {
+@media (max-width: 1100px) {
   .infoGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 560px) {
+@media (max-width: 640px) {
   .infoGrid {
     grid-template-columns: 1fr;
   }
 }
 
 .infoCard {
-  border: 1px solid rgba(110, 203, 255, 0.16);
-  border-radius: 10px;
-  padding: 10px 12px;
-  background: rgba(6, 12, 28, 0.45);
-  font-size: 12px;
-  line-height: 1.45;
-  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--bg1);
+  font-size: 13px;
+  line-height: 1.5;
+  transition: all 0.2s ease;
+}
+
+.infoCard:hover {
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  border-color: var(--accent);
 }
 
 .infoMain {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0 6px;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .infoLabel {
-  color: rgba(138, 164, 191, 0.98);
-  flex-shrink: 0;
-}
-
-.infoSep {
-  color: rgba(138, 164, 191, 0.55);
-  margin: 0 -2px;
+  color: var(--muted);
+  font-weight: 500;
 }
 
 .infoValue {
-  color: rgba(232, 247, 255, 0.95);
+  color: var(--text);
+  font-weight: 700;
+  font-size: 16px;
   font-variant-numeric: tabular-nums;
 }
 
 .infoReason {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px dashed rgba(110, 203, 255, 0.12);
-  font-size: 11px;
-  line-height: 1.5;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+  font-size: 12px;
+  color: #ef4444;
 }
 
 .legend {
-  margin-top: 10px;
-  font-size: 12px;
-  line-height: 1.7;
-  color: rgba(138, 164, 191, 0.95);
+  margin-top: 24px;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--bg1);
+  font-size: 13px;
+  color: var(--muted);
+  border-left: 4px solid var(--accent);
 }
 
 .tableWrap {
   overflow: auto;
+  margin: 0 -24px;
 }
 
 .table {
@@ -138,93 +153,77 @@
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
-  min-width: 720px;
+  min-width: 900px;
 }
 
-.colIdx {
-  width: 5%;
-}
+.colIdx { width: 60px; }
+.colThumb { width: 160px; }
+.colEnergy { width: 200px; }
+.colCost { width: 200px; }
+.colChart { width: auto; }
 
-.colThumb {
-  width: 14%;
-}
-
-.colEnergy {
-  width: 14%;
-}
-
-.colCost {
-  width: 13%;
-}
-
-/* 其余约一半以上宽度给功率时序图 */
-.colChart {
-  width: 54%;
-  min-width: 320px;
-}
-
-.table th,
-.table td {
-  border: none;
-  padding: 14px 12px;
-  vertical-align: top;
-  text-align: left;
+.table th {
+  background: var(--bg1);
+  color: var(--muted);
+  font-weight: 600;
   font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 16px 24px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
 }
 
-.table thead th {
-  color: rgba(138, 164, 191, 0.95);
-  font-weight: 800;
-  letter-spacing: 0.08em;
+.table td {
+  padding: 24px;
+  border-bottom: 1px solid var(--line);
   vertical-align: middle;
 }
 
-.table tbody tr:nth-child(odd) td {
-  background: rgba(6, 10, 22, 0.25);
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+.table tr:hover td {
+  background: #fdfaf3;
 }
 
 .tdIdx {
-  vertical-align: middle;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
   font-weight: 700;
-}
-
-.tdThumb {
-  vertical-align: middle;
+  color: var(--accent);
+  font-size: 18px;
 }
 
 .tdStack {
-  line-height: 1.65;
+  line-height: 1.8;
 }
 
 .stackLines {
-  color: rgba(232, 247, 255, 0.92);
+  color: var(--text);
   font-variant-numeric: tabular-nums;
-  white-space: normal;
-  line-height: 2.5;
+  font-size: 14px;
 }
 
 .tdChart {
-  padding: 12px 12px 14px 14px;
-  vertical-align: middle;
+  min-width: 300px;
 }
 
 .chartCell {
   width: 100%;
-  height: 88px;
-  min-height: 88px;
-  max-height: 88px;
-  display: flex;
-  align-items: center;
+  height: 100px;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
 }
 
 .thumb {
   width: 120px;
-  height: 88px;
-  border-radius: 10px;
+  height: 80px;
+  border-radius: 12px;
   overflow: hidden;
-  border: 1px solid rgba(110, 203, 255, 0.16);
+  border: 1px solid var(--line);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
 }
 
 .thumb img {

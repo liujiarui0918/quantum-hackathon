@@ -40,7 +40,10 @@ class AnnealingBenchmarkRunner:
     def run(self, problem_suite: list[OptimizationProblem]) -> BenchmarkReport:
         rows: list[dict] = []
         for problem in problem_suite:
+            model_started = perf_counter()
             model = QuboBuilder(self.builder_config).build(problem)
+            preprocess_ms = (perf_counter() - model_started) * 1000.0
+            model_diagnostics = model.diagnostics()
             for backend in self.backends:
                 started = perf_counter()
                 result = backend.solve(model, self.config)

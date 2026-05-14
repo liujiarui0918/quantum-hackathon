@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from time import perf_counter
+
 from quantum_hackathon.modeling.qubo import QuboModel
 
 from .base import RawSampleSet, SolverResult
@@ -7,6 +9,7 @@ from .base import RawSampleSet, SolverResult
 
 class SolutionPostprocessor:
     def process(self, model: QuboModel, raw_sampleset: RawSampleSet) -> SolverResult:
+        started = perf_counter()
         decoded = [
             model.decode(
                 raw_sample.bitstring,
@@ -28,10 +31,12 @@ class SolutionPostprocessor:
                 sample.bitstring,
             ),
         )
+        timing = dict(raw_sampleset.timing)
+        timing.setdefault("postprocess_ms", (perf_counter() - started) * 1000.0)
         return SolverResult(
             samples=ranked,
             best_raw_energy_sample=best_raw,
             backend_name=raw_sampleset.source_backend,
-            timing=dict(raw_sampleset.timing),
+            timing=timing,
             diagnostics={"raw_sample_count": len(raw_sampleset.samples)},
         )
