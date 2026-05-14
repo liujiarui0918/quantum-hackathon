@@ -145,7 +145,7 @@ export default function TasksPage() {
   return (
     <main className="panel" style={{ padding: 16 }}>
       <div className={styles.titleRow}>
-        <div className={styles.title}>任务管理</div>
+        <div className={styles.title}>发电机组调度 - 任务管理</div>
         {headerRight}
       </div>
 
