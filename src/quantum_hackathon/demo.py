@@ -178,6 +178,16 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--qaoa-max-qubits", type=int, default=12)
     parser.add_argument("--qaoa-grid-size", type=int, default=5)
     parser.add_argument("--qaoa-random-trials", type=int, default=10)
+    parser.add_argument(
+        "--qaoa-backend",
+        choices=["local", "aer", "aer-gpu", "aer-cpu"],
+        default="local",
+        help="Optional QAOA execution backend; aer-gpu targets the MetaX container.",
+    )
+    parser.add_argument("--aer-device", choices=["CPU", "GPU"], default="GPU")
+    parser.add_argument("--aer-method", default="statevector")
+    parser.add_argument("--aer-max-qubits", type=int, default=30)
+    parser.add_argument("--aer-optimization-level", type=int, default=1)
     parser.add_argument("--skip-qaoa", action="store_true")
     return parser
 
@@ -302,10 +312,19 @@ def _run_qaoa(model: Any, args: argparse.Namespace) -> tuple[dict[str, Any], Dec
         max_qubits=args.qaoa_max_qubits,
         grid_size=args.qaoa_grid_size,
         random_trials=args.qaoa_random_trials,
+        backend=args.qaoa_backend,
+        aer_device=args.aer_device,
+        aer_method=args.aer_method,
+        aer_max_qubits=args.aer_max_qubits,
+        aer_optimization_level=args.aer_optimization_level,
     )
     result = QaoaRunner().solve(model, config)
     best_feasible = result.best_samples.best_feasible()
     trace_values = [entry.value for entry in result.optimizer_trace]
+    circuit_summary["execution_backend"] = result.diagnostics.get(
+        "execution_backend",
+        circuit_summary["execution_backend"],
+    )
     summary = {
         "status": "ran",
         "backend": result.best_samples.backend_name,

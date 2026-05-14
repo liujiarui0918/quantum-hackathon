@@ -5,6 +5,7 @@ from quantum_hackathon.modeling.problem import OptimizationProblem
 from quantum_hackathon.modeling.qubo import QuboBuilder
 from quantum_hackathon.solvers.qaoa import (
     CostHamiltonianBuilder,
+    QiskitAerQaoaBackend,
     QaoaConfig,
     QaoaRunner,
     ShotSimulatorBackend,
@@ -63,3 +64,15 @@ def test_qaoa_runner_returns_postprocessed_feasible_result_for_exactly_one_selec
     assert result.best_parameters
     assert result.best_samples.best_feasible() is not None
     assert result.best_samples.best_feasible().is_feasible is True
+
+
+def test_qiskit_aer_backend_helper_is_safe_without_optional_dependency():
+    backend = QiskitAerQaoaBackend()
+
+    converted = backend._counts_to_bitstrings({"010": 2, "101": 1}, 3)
+
+    assert converted == {
+        (0, 1, 0): 2,
+        (1, 0, 1): 1,
+    }
+    assert backend.is_available() in {True, False}

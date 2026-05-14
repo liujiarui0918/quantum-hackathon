@@ -1,4 +1,10 @@
-from .backends import ShotSimulatorBackend, StatevectorQaoaBackend, StatevectorResult
+from .backends import (
+    QiskitAerQaoaBackend,
+    QiskitAerUnavailableError,
+    ShotSimulatorBackend,
+    StatevectorQaoaBackend,
+    StatevectorResult,
+)
 from .hamiltonian import CostHamiltonian, CostHamiltonianBuilder
 from .optimizers import (
     FixedInitializer,
@@ -18,6 +24,8 @@ __all__ = [
     "QaoaConfig",
     "QaoaResult",
     "QaoaRunner",
+    "QiskitAerQaoaBackend",
+    "QiskitAerUnavailableError",
     "RandomInitializer",
     "ShotSimulatorBackend",
     "SimpleQaoaOptimizer",

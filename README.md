@@ -68,6 +68,14 @@ python -m pip install -e .
 python -m quantum_hackathon.demo --input data/sample_problem.json --output results/result.json --report results/report.md
 ```
 
+沐曦 / `qiskit-aer-maca` 适配运行：
+
+```bash
+python -m quantum_hackathon.metax_demo --input data/sample_problem.json --output results/metax_result.json --report results/metax_report.md
+```
+
+该入口会保持六条算法路线都可运行，并将标准 QAOA 的最终 shot execution 优先交给 `Qiskit AerSimulator(method="statevector", device="GPU")`。如果容器没有 `qiskit-aer` 或 GPU 后端不可用，会记录 warning 并回退到仓库内置的本地 shot simulator。默认还会额外执行一个 Aer GPU stress circuit，用于确认 `qiskit-aer-maca` 能看到并调度 4 张沐曦卡；可用 `--skip-stress` 跳过。
+
 如果需要测试：
 
 ```bash
