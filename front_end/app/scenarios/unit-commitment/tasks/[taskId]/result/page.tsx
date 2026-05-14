@@ -7,6 +7,13 @@ import axios from 'axios';
 import { api } from '@/lib/axios-client';
 import type { TaskResultPayload } from '@/lib/types';
 import { MiniPowerChart } from '@/components/MiniPowerChart';
+import { QuantumSummaryCard } from '@/components/QuantumSummaryCard';
+import { BenchmarkComparison } from '@/components/BenchmarkComparison';
+import {
+  extractBestSolution,
+  extractBenchmarkRows,
+} from '@/lib/map-quantum-to-business';
+import type { QuantumApiResponse } from '@/lib/quantum-api-types';
 import styles from './result.module.css';
 
 export default function TaskResultPage() {
@@ -14,6 +21,11 @@ export default function TaskResultPage() {
   const taskId = params?.taskId;
   const [data, setData] = useState<TaskResultPayload | null>(null);
   const [err, setErr] = useState<string | null>(null);
+
+  // ---------- quantum solve ----------
+  const [quantumData, setQuantumData] = useState<QuantumApiResponse | null>(null);
+  const [quantumLoading, setQuantumLoading] = useState(false);
+  const [quantumError, setQuantumError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!taskId) return;
@@ -39,6 +51,40 @@ export default function TaskResultPage() {
             setErr('暂无法获取结果，请稍后重试或返回任务列表重新进入。');
           }
         }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [taskId]);
+
+  // ---------- quantum solve effect ----------
+  useEffect(() => {
+    if (!taskId) return;
+    let cancelled = false;
+    (async () => {
+      setQuantumLoading(true);
+      setQuantumError(null);
+      try {
+        const problem = buildSampleProblemFromTask(taskId);
+        const res = await api.post<QuantumApiResponse>('/api/quantum/solve', {
+          problem,
+          run_options: {},
+        });
+        if (!cancelled) {
+          setQuantumData(res.data);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setQuantumError(
+            axios.isAxiosError(e)
+              ? (e.response?.data as { error?: { message?: string } })?.error?.message ??
+                e.message
+              : '量子求解服务暂不可用',
+          );
+        }
+      } finally {
+        if (!cancelled) setQuantumLoading(false);
       }
     })();
     return () => {
@@ -149,6 +195,33 @@ export default function TaskResultPage() {
             </div>
           </section>
 
+          {/* ---------- 量子求解结果 ---------- */}
+          {quantumLoading && (
+            <section className={styles.section}>
+              <div className={styles.sectionTitle}>量子求解结果</div>
+              <div className="muted">量子求解中...</div>
+            </section>
+          )}
+          {quantumError && !quantumLoading && (
+            <section className={styles.section}>
+              <div className={styles.sectionTitle}>量子求解结果</div>
+              <div className={styles.error}>量子求解暂不可用：{quantumError}</div>
+            </section>
+          )}
+          {quantumData && !quantumLoading && (
+            <section className={styles.section}>
+              <div className={styles.sectionTitle}>量子求解结果</div>
+              <QuantumSummaryCard
+                bestSolution={extractBestSolution(quantumData.visualization)}
+                sense={quantumData.visualization.quantum.problem.sense}
+              />
+              <BenchmarkComparison
+                rows={extractBenchmarkRows(quantumData.visualization)}
+                sense={quantumData.visualization.quantum.problem.sense}
+              />
+            </section>
+          )}
+
           <section className={styles.section}>
             <div className={styles.sectionTitle}>结果明细</div>
 
@@ -238,4 +311,64 @@ function renderTaskFieldValue(task: TaskResultPayload['task'], key: string) {
   if (key === 'endCosts') return `${task.endCosts} 元`;
   if (key === 'fuelCosts') return `${task.fuelCosts} 元/MWh`;
   return '';
+}
+
+function buildSampleProblemFromTask(taskId: string) {
+  const variables = [
+    { name: 'model_a', kind: 'binary' as const },
+    { name: 'model_b', kind: 'binary' as const },
+    { name: 'model_c', kind: 'binary' as const },
+    { name: 'boost_x', kind: 'binary' as const },
+    { name: 'boost_y', kind: 'binary' as const },
+  ];
+
+  return {
+    name: `unit_commitment_${taskId}`,
+    sense: 'maximize' as const,
+    variables,
+    objective: {
+      linear: {
+        model_a: 9.0,
+        model_b: 6.0,
+        model_c: 7.0,
+        boost_x: 3.0,
+        boost_y: 2.0,
+      },
+      quadratic: [
+        {
+          variables: ['model_c', 'boost_x'] as [string, string],
+          coefficient: 1.0,
+        },
+      ],
+      offset: 0.0,
+    },
+    constraints: [
+      {
+        name: 'choose_one_model',
+        linear: {
+          model_a: 1.0,
+          model_b: 1.0,
+          model_c: 1.0,
+        },
+        sense: '==' as const,
+        rhs: 1.0,
+        constraint_type: 'exactly_one' as const,
+        penalty_weight: 15.0,
+      },
+      {
+        name: 'resource_budget',
+        linear: {
+          model_a: 5.0,
+          model_b: 3.0,
+          model_c: 4.0,
+          boost_x: 2.0,
+          boost_y: 1.0,
+        },
+        sense: '<=' as const,
+        rhs: 6.0,
+        constraint_type: 'bounded_sum' as const,
+        penalty_weight: 20.0,
+      },
+    ],
+  };
 }
