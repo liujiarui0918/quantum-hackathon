@@ -74,7 +74,7 @@ python -m quantum_hackathon.demo --input data/sample_problem.json --output resul
 python -m quantum_hackathon.metax_demo --input data/sample_problem.json --output results/metax_result.json --report results/metax_report.md
 ```
 
-该入口会保持六条算法路线都可运行，并将标准 QAOA 的最终 shot execution 优先交给 `Qiskit AerSimulator(method="statevector", device="GPU")`。如果容器没有 `qiskit-aer` 或 GPU 后端不可用，会记录 warning 并回退到仓库内置的本地 shot simulator。默认还会额外执行一个 Aer GPU stress circuit，用于确认 `qiskit-aer-maca` 能看到并调度 4 张沐曦卡；可用 `--skip-stress` 跳过。
+该入口会保持七条算法路线都可运行，并将标准 QAOA 的最终 shot execution 优先交给 `Qiskit AerSimulator(method="statevector", device="GPU")`。路线 7 的 learning-guided backend 当前默认走可复现 CPU baseline，但已经导出 QUBO graph 训练数据、变量固定计划和 warm-start 候选，后续可把 4 张 64GB 沐曦卡用于 GNN/RL policy 训练。如果容器没有 `qiskit-aer` 或 GPU 后端不可用，会记录 warning 并回退到仓库内置的本地 shot simulator。默认还会额外执行一个 Aer GPU stress circuit，用于确认 `qiskit-aer-maca` 能看到并调度 4 张沐曦卡；可用 `--skip-stress` 跳过。
 
 如果需要测试：
 
@@ -91,7 +91,7 @@ python -m pytest -q
 | Local verified version | Python `3.12.10` |
 | Runtime dependencies | Python standard library only |
 | Test dependency | `pytest>=8.0` |
-| Hardware | CPU only |
+| Hardware | CPU for core demo; optional MetaX GPU for Aer QAOA and offline learning-guided training |
 | Expected sample runtime | Usually under a few seconds |
 
 项目目前没有强制安装 Qiskit Python 包，因为已有 QAOA 路线使用仓库内的轻量 statevector/shot simulator 实现，避免在评审环境里因为外部依赖版本不同导致不可复现。
@@ -132,6 +132,7 @@ Main modules:
 | `src/quantum_hackathon/modeling/qubo.py` | QUBO builder, Ising conversion, decoding, feasibility checks, diagnostics. |
 | `src/quantum_hackathon/solvers/exact.py` | Exact enumeration for small QUBO models; correctness baseline. |
 | `src/quantum_hackathon/solvers/simulated_annealing.py` | CPU simulated annealing baseline. |
+| `src/quantum_hackathon/solvers/learning_guided.py` | Learning-guided route: QUBO graph features, training JSONL builder, variable fixing plan and warm-start backend. |
 | `src/quantum_hackathon/solvers/qaoa/` | Standard QAOA Hamiltonian, statevector backend, shot sampler, simple optimizer. |
 | `src/quantum_hackathon/solvers/constrained_qaoa/` | Feasible-subspace and XY-mixer metadata route for one-hot constraints. |
 | `src/quantum_hackathon/constraints/` | Constraint encoding, repair and penalty analysis utilities. |
@@ -150,11 +151,12 @@ The one-click demo performs the following steps:
 4. Convert QUBO into an Ising Hamiltonian for QAOA.
 5. Run exact enumeration if the QUBO bit count is small enough.
 6. Run simulated annealing as a stochastic CPU baseline.
-7. Run standard QAOA with local statevector optimization and shot sampling if the QUBO bit count is below `--qaoa-max-qubits`.
-8. Run constrained-QAOA metadata diagnostics when one-hot constraints are present.
-9. Decode bitstrings back to logical variables.
-10. Check feasibility against original constraints.
-11. Write `result.json` and `report.md`.
+7. Run learning-guided warm-start sampling with QUBO graph features and variable fixing metadata.
+8. Run standard QAOA with local statevector optimization and shot sampling if the QUBO bit count is below `--qaoa-max-qubits`.
+9. Run constrained-QAOA metadata diagnostics when one-hot constraints are present.
+10. Decode bitstrings back to logical variables.
+11. Check feasibility against original constraints.
+12. Write `result.json` and `report.md`.
 
 ## One-Click CLI
 
@@ -307,6 +309,7 @@ Constraint schema:
 | `benchmark` | Compact comparison rows and Markdown table. |
 | `solvers.exact` | Exact enumeration route result or skip reason. |
 | `solvers.simulated_annealing` | Simulated annealing route result. |
+| `solvers.learning_guided` | Learning-guided warm-start route result, QUBO graph metadata and variable fixing plan. |
 | `qaoa` | Standard QAOA simulator result, parameters, optimizer summary and circuit description. |
 | `constrained_qaoa` | Feasible-subspace and XY-mixer diagnostics for one-hot constraints. |
 | `output_files` | Paths of generated output files. |
@@ -363,7 +366,26 @@ The exact solver enumerates every bitstring for small QUBO models and is used as
 
 The simulated annealing route performs seeded stochastic local search on the QUBO energy. It provides a scalable CPU baseline and helps compare the QAOA route with a common heuristic.
 
-### 5. Standard QAOA Route
+### 5. Learning-Guided Optimization
+
+The learning-guided route turns the QUBO into graph data and uses a policy to generate warm-start candidates:
+
+```text
+QUBO -> node/edge features -> variable scores -> fixing plan -> candidate bitstrings -> local improvement
+```
+
+Current P0 implementation is intentionally dependency-light:
+
+- `QuboGraphFeatureExtractor` exports node features and couplers for GNN training.
+- `LearningGuidedDatasetBuilder` writes labeled JSONL records using exact or replaceable solver labels.
+- `LinearWarmStartPolicy` provides an interpretable baseline for ranking variables.
+- `VariableFixingPlan` records high-confidence fixed bits and uncertain free bits.
+- Logical-aware candidate generation creates assignments on original variables first, then lets `QuboModel.bitstring_from_logical()` fill slack and auxiliary bits.
+- `LearningGuidedSamplerBackend` participates in the same benchmark table as exact and simulated annealing.
+
+This route is designed for GPU-assisted training later, not as a proof of global optimality. Final answers still go through decode, feasibility checks and objective recomputation.
+
+### 6. Standard QAOA Route
 
 The QAOA route implements the standard X-mixer ansatz:
 
@@ -385,7 +407,7 @@ Implementation details:
 
 The generated `qaoa.quantum_circuit` JSON field records the exact Hamiltonian terms and estimated gate counts for the submitted instance.
 
-### 6. Constrained-QAOA Metadata Route
+### 7. Constrained-QAOA Metadata Route
 
 For constraints marked as `constraint_type="exactly_one"`, the constrained route identifies one-hot feasible subspaces and reports XY-mixer diagnostics:
 
@@ -440,6 +462,7 @@ For `data/sample_problem.json` with default parameters:
 | QUBO build | milliseconds |
 | Exact enumeration | runs because sample has a small QUBO bit count |
 | Simulated annealing | usually under a few seconds |
+| Learning-guided baseline | usually under a few seconds; GPU training is optional and offline |
 | Standard QAOA local simulator | usually under a few seconds for the sample |
 | Constrained-QAOA metadata | milliseconds to seconds |
 

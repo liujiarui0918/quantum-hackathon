@@ -13,6 +13,17 @@ from .constrained_qaoa import (
     WarmStartStateSpec,
 )
 from .exact import ExactSolverBackend
+from .learning_guided import (
+    LearningGuidedSamplerBackend,
+    LearningGuidedDatasetBuilder,
+    LearningGuidedTrainingExample,
+    LinearWarmStartPolicy,
+    QuboEdgeFeature,
+    QuboGraphFeatureExtractor,
+    QuboGraphFeatures,
+    QuboNodeFeature,
+    VariableFixingPlan,
+)
 from .postprocess import SolutionPostprocessor
 from .qaoa import (
     CostHamiltonian,
@@ -43,6 +54,15 @@ __all__ = [
     "ExactSolverBackend",
     "RandomSamplerBackend",
     "SimulatedAnnealingBackend",
+    "LearningGuidedSamplerBackend",
+    "LearningGuidedDatasetBuilder",
+    "LearningGuidedTrainingExample",
+    "LinearWarmStartPolicy",
+    "QuboEdgeFeature",
+    "QuboGraphFeatureExtractor",
+    "QuboGraphFeatures",
+    "QuboNodeFeature",
+    "VariableFixingPlan",
     "SolutionPostprocessor",
     "CostHamiltonian",
     "CostHamiltonianBuilder",

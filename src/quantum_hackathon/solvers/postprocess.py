@@ -38,5 +38,5 @@ class SolutionPostprocessor:
             best_raw_energy_sample=best_raw,
             backend_name=raw_sampleset.source_backend,
             timing=timing,
-            diagnostics={"raw_sample_count": len(raw_sampleset.samples)},
+            diagnostics={"raw_sample_count": len(raw_sampleset.samples), **raw_sampleset.backend_metadata},
         )

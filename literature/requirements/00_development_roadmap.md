@@ -1,14 +1,14 @@
 # 总体开发路线图：混合整数约束优化的量子/量子启发求解框架
 
-更新日期：2026-05-12
+更新日期：2026-05-15
 
 ## 1. 文档目标
 
-本文档把 6 类理论路线串成一套可落地的开发计划。读者默认是写代码的人，目标是先做出稳定的通用优化框架，再逐步接入 quantum annealing、QAOA、constrained mixer 和 hybrid decomposition。
+本文档把 7 类理论路线串成一套可落地的开发计划。读者默认是写代码的人，目标是先做出稳定的通用优化框架，再逐步接入 quantum annealing、QAOA、constrained mixer、hybrid decomposition 和 learning-guided optimization。
 
 当前阶段暂不绑定电力、排产、物流、金融等具体场景。场景论文后续只作为 benchmark 和 demo 数据来源。
 
-## 2. 六条路线的开发定位
+## 2. 七条路线的开发定位
 
 ### 路线 1：QUBO / Ising 建模底座
 
@@ -57,6 +57,12 @@
 定位：工程上最稳的扩展路线。把完整混合整数问题拆成 classical relaxation、rounding、repair、continuous polish 和小 QUBO subproblem，让量子/量子启发 solver 只处理离散子问题。
 
 当问题规模变大或含连续变量时，应优先走这条路线，而不是强行 direct QUBO。
+
+### 路线 7：Learning-Guided Optimization / 神经网络辅助混合优化
+
+文档：`07_learning_guided_optimization_requirements.md`
+
+定位：GPU 友好的学习引导层。它把 QUBO / MILP 表示成图，学习 warm-start、变量固定、branching、repair、local search 和 QAOA/退火参数调度。它不替代 exact solver、MILP bound 或 feasibility checker，而是让前面路线更快产生高质量候选解。
 
 ## 3. 推荐实现顺序
 
@@ -173,6 +179,28 @@
 - noiseless simulator 中，XY mixer 的 covered constraints violation rate 为 0。
 - penalty QAOA 与 XY-QAOA 的 feasible ratio、best feasible objective、circuit depth 有可复现实验报告。
 
+### 第六阶段：Learning-Guided Optimization 与 GPU 训练接口
+
+目标：把已有 benchmark 输出变成训练信号，用学习策略给退火、QAOA、constrained mixer 和 hybrid 子问题提供 warm-start 和变量固定建议。
+
+应完成：
+
+- QUBO graph feature exporter。
+- training JSONL builder。
+- exact / SA / hybrid incumbent label source。
+- linear warm-start policy baseline。
+- variable fixing plan。
+- optional PyTorch/GNN policy adapter。
+- repair / local-search policy scaffold。
+- QAOA parameter initialization predictor P2。
+
+验收标准：
+
+- 小规模问题能导出带 exact label 的训练样本。
+- learning-guided backend 能作为 solver row 进入 demo benchmark。
+- 固定变量计划可解释：记录 fixed bits、free bits、概率和置信度。
+- 文档明确神经网络是启发式增强，不承诺最优性。
+
 ## 4. 推荐代码目录
 
 建议新增代码结构：
@@ -200,6 +228,7 @@ src/quantum_hackathon/
     exact.py
     random.py
     simulated_annealing.py
+    learning_guided.py
     tabu.py
     qaoa/
       hamiltonian.py
@@ -378,6 +407,8 @@ Hybrid 额外字段：
 
 - warm-start XY。
 - R-QAOA。
+- learning-guided warm-start / variable fixing。
+- GNN/RL repair policy。
 - domain-wall。
 - ADMM hybrid。
 - D-Wave adapter。

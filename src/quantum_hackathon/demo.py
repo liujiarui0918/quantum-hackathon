@@ -14,6 +14,7 @@ from quantum_hackathon.modeling.qubo import ConstraintCheckResult, DecodedSample
 from quantum_hackathon.solvers.base import SamplerConfig
 from quantum_hackathon.solvers.constrained_qaoa import ConstrainedQaoaRunner
 from quantum_hackathon.solvers.exact import ExactSolverBackend
+from quantum_hackathon.solvers.learning_guided import LearningGuidedSamplerBackend
 from quantum_hackathon.solvers.qaoa import CostHamiltonianBuilder, QaoaConfig, QaoaRunner
 from quantum_hackathon.solvers.simulated_annealing import SimulatedAnnealingBackend
 
@@ -103,14 +104,21 @@ def run_demo(problem: OptimizationProblem, *, source: str, args: argparse.Namesp
         model,
         sampler_config,
     )
+    learning_summary, learning_best = _run_backend(
+        "learning_guided",
+        LearningGuidedSamplerBackend(),
+        model,
+        sampler_config,
+    )
     qaoa_summary, qaoa_best = _run_qaoa(model, args)
     constrained_summary, constrained_best = _run_constrained_qaoa(problem, args)
 
-    candidates = [exact_best, annealing_best, qaoa_best, constrained_best]
+    candidates = [exact_best, annealing_best, learning_best, qaoa_best, constrained_best]
     best_solution = _best_sample(candidates, problem.sense)
     benchmark_rows = [
         _benchmark_row("exact", exact_summary),
         _benchmark_row("simulated_annealing", annealing_summary),
+        _benchmark_row("learning_guided", learning_summary),
     ]
     if qaoa_summary["status"] == "ran":
         benchmark_rows.append(_benchmark_row("qaoa_shot_simulator", qaoa_summary))
@@ -142,6 +150,7 @@ def run_demo(problem: OptimizationProblem, *, source: str, args: argparse.Namesp
         "solvers": {
             "exact": exact_summary,
             "simulated_annealing": annealing_summary,
+            "learning_guided": learning_summary,
         },
         "qaoa": qaoa_summary,
         "constrained_qaoa": constrained_summary,

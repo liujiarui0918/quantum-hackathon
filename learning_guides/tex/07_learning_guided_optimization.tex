@@ -1,0 +1,356 @@
+
+\documentclass[UTF8,12pt,a4paper]{ctexart}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{fontspec}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{fancyvrb}
+\usepackage{fvextra}
+\usepackage{microtype}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{setspace}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!55!black,
+  urlcolor=blue!55!black
+}
+
+\setstretch{1.18}
+\setlist[itemize]{leftmargin=1.8em,itemsep=0.25em,topsep=0.3em}
+\setlist[enumerate]{leftmargin=2.1em,itemsep=0.25em,topsep=0.3em}
+\titleformat{\section}{\Large\bfseries}{\thesection}{0.8em}{}
+\titleformat{\subsection}{\large\bfseries}{\thesubsection}{0.8em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries}{\thesubsubsection}{0.8em}{}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+
+\DefineVerbatimEnvironment{GuideVerbatim}{Verbatim}{
+  breaklines=true,
+  breakanywhere=true,
+  fontsize=\small,
+  frame=single,
+  framesep=3mm,
+  rulecolor=\color{gray!35},
+  bgcolor=gray!7
+}
+
+\newcommand{\GuideInlineCode}[1]{\texttt{\detokenize{#1}}}
+
+\begin{document}
+
+\section*{路线 7：Learning-Guided Optimization / 神经网络辅助混合优化}
+
+这条路线回答一个很现实的问题：既然比赛给了 4 张 64GB GPU，我们能不能把量子优化和深度学习结合起来？
+
+可以，但要放在正确位置上。
+
+神经网络不是“直接吐出最优解”的保证器。更靠谱的做法是：让神经网络学习优化流程里的局部策略，然后把它接到 QUBO、退火、QAOA、constrained mixer 和 hybrid workflow 里。
+
+\subsection*{先说结论}
+
+目前我们的体系已经很完整，但不是终点。
+
+原来的六条路线覆盖了：
+
+\begin{itemize}
+\item 如何把问题变成 QUBO / Ising。
+\item 如何处理约束。
+\item 如何用退火采样。
+\item 如何用 QAOA。
+\item 如何用 constrained mixer 保持部分可行性。
+\item 如何用 hybrid 分解处理大规模 MILP / MIQP。
+\end{itemize}
+
+新增第七路线后，体系多了一层：
+
+\begin{GuideVerbatim}
+学习哪些变量重要、哪些变量该固定、从哪里开始搜索、怎么修复非法解、怎么调量子/退火参数。
+\end{GuideVerbatim}
+
+这层非常适合 GPU。
+
+\subsection*{神经网络能学什么}
+
+\subsubsection*{Warm-start}
+
+给一个 QUBO 或 MILP，神经网络预测每个 binary variable 取 1 的概率。
+
+例如：
+
+\begin{GuideVerbatim}
+x0: 0.91
+x1: 0.08
+x2: 0.62
+x3: 0.49
+\end{GuideVerbatim}
+
+高置信度变量可以作为初始解、固定变量或 QAOA 初态权重。
+
+\subsubsection*{Variable fixing}
+
+如果模型非常确信 \texttt{x0 = 1}、\texttt{x1 = 0}，可以先固定它们，把剩下不确定变量交给 QUBO 子问题。
+
+这和 hybrid 路线天然相连：
+
+\begin{GuideVerbatim}
+relaxation / neural policy
+  -> fixed variables
+  -> smaller QUBO
+  -> SA / QAOA / constrained mixer
+\end{GuideVerbatim}
+
+\subsubsection*{Branching}
+
+MILP solver 的 branch-and-bound 需要选择“先分裂哪个变量”。GNN 可以学习 branching score。
+
+这不直接求解原问题，但能改变搜索树大小。
+
+\subsubsection*{Repair policy}
+
+当候选解非法时，repair 要决定删哪个、换哪个、翻哪个 bit。
+
+神经网络或强化学习可以学习：
+
+\begin{GuideVerbatim}
+当前 violation 状态 -> 下一步 repair action
+\end{GuideVerbatim}
+
+\subsubsection*{Parameter scheduling}
+
+QAOA 的 \texttt{gamma/beta}、SA 的温度表、constrained mixer 的初始态权重，都可以由学习模型给出初值或候选分布。
+
+\subsection*{神经网络不能保证什么}
+
+它不能保证全局最优。
+
+深度学习模型通常是启发式。它能利用训练分布里的结构，但如果赛题分布变化很大，它可能失效。
+
+所以比赛方案里必须保留：
+
+\begin{itemize}
+\item exact solver 小规模验证。
+\item simulated annealing / greedy baseline。
+\item feasibility checker。
+\item repair。
+\item objective recomputation。
+\item benchmark gap。
+\end{itemize}
+
+神经网络负责“更快找到好解”，不是负责“证明这就是最优解”。
+
+\subsection*{QUBO 怎么变成神经网络输入}
+
+QUBO 本身就是图：
+
+\begin{itemize}
+\item 节点：binary variables。
+\item 边：二次项 \texttt{q\_ij x\_i x\_j}。
+\item 节点特征：线性项、度数、正负耦合和、约束来源。
+\item 边特征：coupler coefficient。
+\end{itemize}
+
+我们的代码现在提供：
+
+\begin{GuideVerbatim}
+QuboGraphFeatureExtractor
+\end{GuideVerbatim}
+
+它会导出：
+
+\begin{GuideVerbatim}
+node_features
+edges
+labels
+\end{GuideVerbatim}
+
+这就是后续训练 GNN 的数据接口。
+
+\subsection*{训练标签从哪里来}
+
+小规模问题：
+
+\begin{GuideVerbatim}
+exact solver -> optimal bitstring
+\end{GuideVerbatim}
+
+中规模问题：
+
+\begin{GuideVerbatim}
+SA / hybrid / repair -> best feasible incumbent
+\end{GuideVerbatim}
+
+大规模问题：
+
+\begin{GuideVerbatim}
+classical solver time-limited incumbent
+multi-solver ensemble
+human-designed heuristic
+\end{GuideVerbatim}
+
+标签不一定完美。我们要记录 label source 和 confidence。
+
+\subsection*{4 张 64GB GPU 怎么用}
+
+第一阶段：批量生成训练数据。
+
+跑很多 problem instances，记录 QUBO graph、约束图、solver 输出、repair trace。
+
+第二阶段：训练 GNN warm-start policy。
+
+输入 QUBO 图，输出每个变量取 1 的概率。
+
+第三阶段：训练 repair / local search policy。
+
+把修复过程看成强化学习：
+
+\begin{GuideVerbatim}
+state: 当前 bitstring + violation + objective
+action: flip / swap / drop / add
+reward: violation 降低 + objective 改善
+\end{GuideVerbatim}
+
+第四阶段：和量子路线结合。
+
+用学习模型给：
+
+\begin{itemize}
+\item QAOA 初始参数。
+\item QAOA warm-start state。
+\item constrained mixer 的 feasible initial state。
+\item 退火初始解。
+\item hybrid 子问题变量集合。
+\end{itemize}
+
+\subsection*{和量子算法的关系}
+
+这条路线不是量子算法的替代品，而是量子算法的助推器。
+
+对量子退火：
+
+\begin{GuideVerbatim}
+学习生成初态 / 子问题 / penalty 配置 / repair 策略
+\end{GuideVerbatim}
+
+对 QAOA：
+
+\begin{GuideVerbatim}
+学习 gamma/beta 初值、warm-start state、可行初态、参数迁移
+\end{GuideVerbatim}
+
+对 constrained mixer：
+
+\begin{GuideVerbatim}
+学习 feasible initial state 和 transition graph 偏好
+\end{GuideVerbatim}
+
+对 hybrid：
+
+\begin{GuideVerbatim}
+学习变量固定、子问题选择和 repair
+\end{GuideVerbatim}
+
+\subsection*{更高级量子算法放在哪里}
+
+有更高级的 QAOA 变体：
+
+\begin{itemize}
+\item multi-angle QAOA。
+\item counterdiabatic QAOA。
+\item digitized-counterdiabatic QAOA。
+\item gradually changing unitaries。
+\item warm-start QAOA。
+\item R-QAOA。
+\end{itemize}
+
+但它们大多不是全新入口，而是路线 4 和路线 5 的增强。
+
+我们当前最合理的升级路线是：
+
+\begin{GuideVerbatim}
+先补 Learning-Guided Optimization
+再把 advanced QAOA variants 放进 P2/P3
+\end{GuideVerbatim}
+
+因为学习驱动层能同时服务退火、QAOA、constrained mixer 和 hybrid。
+
+\subsection*{代码里的 P0 版本}
+
+当前新增了一个轻量 backend：
+
+\begin{GuideVerbatim}
+LearningGuidedSamplerBackend
+\end{GuideVerbatim}
+
+它做五件事：
+
+\begin{GuideVerbatim}
+1. 从 QUBO 提取图特征
+2. 用 linear warm-start policy 给变量打分
+3. 先生成 logical candidate，再自动填 slack / auxiliary bits
+4. 结合变量固定计划生成候选 bitstring
+5. 做局部翻转改进，再交给统一 postprocessor
+\end{GuideVerbatim}
+
+这不是最终神经网络，但它把接口打通了。
+
+后续可以把 \texttt{LinearWarmStartPolicy} 替换成 PyTorch/GNN 模型。
+
+现在代码里还有两个接口专门服务后续 GPU 训练：
+
+\begin{GuideVerbatim}
+LearningGuidedDatasetBuilder
+  -> 把 OptimizationProblem 批量转成 QUBO graph JSONL
+  -> 小规模用 exact solver 打标签
+  -> 中规模可替换成 SA / hybrid incumbent 打伪标签
+
+VariableFixingPlan
+  -> 从 policy 概率和置信度生成 fixed bits / free bits
+  -> fixed bits 可交给 hybrid fix-and-optimize
+  -> free bits 可继续交给 SA / QAOA / constrained mixer
+\end{GuideVerbatim}
+
+也就是说，route 7 的 P0 代码已经不是一句“以后训练 GNN”，而是有真实数据出口和求解入口。
+
+\subsection*{比赛时怎么讲}
+
+可以这样讲：
+
+\begin{GuideVerbatim}
+我们的系统不是只跑一个量子算法。
+它先把问题转成统一的 QUBO/Ising 表示，再用约束层保证可行性。
+求解层有 simulated annealing、QAOA、constrained mixer 和 hybrid decomposition。
+在 GPU 可用时，我们再训练 learning-guided policy，为这些求解器提供 warm-start、变量固定和 repair 策略。
+\end{GuideVerbatim}
+
+这比“我们用深度学习直接求最优”稳很多，也更像真实工程系统。
+
+\subsection*{共读任务}
+
+读完这份后，回答三个问题：
+
+\begin{enumerate}
+\item 为什么神经网络不应该直接承诺最优性？
+\item 如果只允许你用 GPU 做一件事，你会训练 warm-start policy、repair policy，还是 QAOA 参数预测器？
+\item 对一个大规模赛题，哪些变量适合固定，哪些变量应该留给 QUBO / QAOA 子问题？
+\end{enumerate}
+
+能答清这三个问题，你就知道 GPU 和量子优化应该怎么接了。
+
+\subsection*{延伸阅读}
+
+\begin{itemize}
+\item \href{https://arxiv.org/abs/1811.06128}{Bengio et al., ML for Combinatorial Optimization}
+\item \href{https://arxiv.org/abs/2012.13349}{Nair et al., Neural Networks for MIP}
+\item \href{https://arxiv.org/abs/2404.06492}{Darvariu et al., Graph RL for CO}
+\item \href{https://arxiv.org/abs/2406.02872}{Liu et al., Automated GNN for CO}
+\item \href{https://arxiv.org/abs/2107.02789}{Chandarana et al., Digitized-counterdiabatic QAOA}
+\item \href{https://arxiv.org/abs/2605.06858}{Falla and Safro, Constrained Counterdiabatic QAOA}
+\end{itemize}
+
+\end{document}

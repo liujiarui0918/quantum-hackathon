@@ -70,5 +70,8 @@ def test_demo_cli_writes_result_and_report():
         assert payload["best_solution"]["is_feasible"] is True
         assert payload["qaoa"]["status"] == "ran"
         assert payload["constrained_qaoa"]["status"] == "ran"
+        assert payload["solvers"]["learning_guided"]["status"] == "ran"
+        assert payload["solvers"]["learning_guided"]["best_feasible"]["objective_value"] == 11.0
+        assert any(row["solver"] == "learning_guided" for row in payload["benchmark"]["rows"])
         assert payload["qaoa"]["quantum_circuit"]["num_qubits"] >= 1
         assert "Solver Benchmark" in report.read_text(encoding="utf-8")

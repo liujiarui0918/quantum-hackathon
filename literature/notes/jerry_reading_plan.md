@@ -74,7 +74,23 @@
 - 每个场景一张建模卡片：变量、目标、约束、典型 QUBO 项、可视化方式。
 - 每个场景至少准备一个小规模样例，方便清哥本地 demo。
 
-## Day 6: 工程接口
+## Day 6: Learning-guided 与 GPU 训练接口
+
+阅读：
+
+- `advanced_algorithm_research.md`
+- `../requirements/07_learning_guided_optimization_requirements.md`
+- Bengio et al., Machine Learning for Combinatorial Optimization: https://arxiv.org/abs/1811.06128
+- Gasse et al., Exact Combinatorial Optimization with Graph Convolutional Neural Networks: https://arxiv.org/abs/1906.01629
+- Nair et al., Solving Mixed Integer Programs Using Neural Networks: https://arxiv.org/abs/2012.13349
+
+输出给清哥：
+
+- route 7 一页说明：神经网络学 warm-start、变量固定、repair、branching 和参数调度。
+- QUBO graph 训练样本字段：node features、edges、labels、label source、diagnostics。
+- GPU 使用边界：可训练 policy，不保证全局最优；最终解仍靠 exact/bound/feasibility/benchmark 验证。
+
+## Day 7: 工程接口
 
 阅读：
 
@@ -86,8 +102,9 @@
 - `problem.json` 输入字段草案。
 - `result.json` 输出字段草案：`objective_value`、`feasible`、`constraint_violations`、`runtime_ms`、`solution`、`baseline`。
 - solver 接口草案：`solve(problem, method, params) -> result`。
+- learning-guided 数据出口草案：`LearningGuidedDatasetBuilder.write_jsonl(problems, path)`。
 
-## Day 7: 队内模拟
+## Day 8: 队内模拟
 
 目标：
 

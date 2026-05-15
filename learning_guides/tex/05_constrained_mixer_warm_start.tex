@@ -1,0 +1,298 @@
+
+\documentclass[UTF8,12pt,a4paper]{ctexart}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{fontspec}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{fancyvrb}
+\usepackage{fvextra}
+\usepackage{microtype}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{setspace}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!55!black,
+  urlcolor=blue!55!black
+}
+
+\setstretch{1.18}
+\setlist[itemize]{leftmargin=1.8em,itemsep=0.25em,topsep=0.3em}
+\setlist[enumerate]{leftmargin=2.1em,itemsep=0.25em,topsep=0.3em}
+\titleformat{\section}{\Large\bfseries}{\thesection}{0.8em}{}
+\titleformat{\subsection}{\large\bfseries}{\thesubsection}{0.8em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries}{\thesubsubsection}{0.8em}{}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+
+\DefineVerbatimEnvironment{GuideVerbatim}{Verbatim}{
+  breaklines=true,
+  breakanywhere=true,
+  fontsize=\small,
+  frame=single,
+  framesep=3mm,
+  rulecolor=\color{gray!35},
+  bgcolor=gray!7
+}
+
+\newcommand{\GuideInlineCode}[1]{\texttt{\detokenize{#1}}}
+
+\begin{document}
+
+\section*{路线 5：Constrained Mixer / Warm-start / XY Mixer}
+
+Constrained mixer 的核心想法很漂亮：与其让算法到处乱走、走错了再罚，不如一开始就设计只能在合法区域里移动的规则。
+
+这条路线是量子算法部分最有“算法创新味”的一条，但它依赖你已经理解 QUBO、约束和标准 QAOA。
+
+\subsection*{从标准 X mixer 的问题开始}
+
+标准 QAOA 的 X mixer 允许每个 bit 独立翻转。
+
+对于 exactly-one：
+
+\begin{GuideVerbatim}
+100, 010, 001 是合法状态
+000, 110, 101, 011, 111 是非法状态
+\end{GuideVerbatim}
+
+如果从 \texttt{100} 出发，X mixer 翻转第 2 个 bit 会到 \texttt{110}，非法；翻转第 1 个 bit 会到 \texttt{000}，也非法。
+
+这说明标准 X mixer 不理解 exactly-one。
+
+\subsection*{XY mixer 的直觉}
+
+XY mixer 不像 X mixer 那样单独翻 bit。它更像交换：
+
+\begin{GuideVerbatim}
+10 <-> 01
+\end{GuideVerbatim}
+
+在量子写法里，常见局部项是：
+
+\begin{GuideVerbatim}
+X_i X_j + Y_i Y_j
+\end{GuideVerbatim}
+
+直觉上，它把一个 excitation 从位置 \texttt{i} 移到位置 \texttt{j}。如果一组变量里始终只有一个 1，那么这种交换会保持“只有一个 1”。
+
+所以在 one-hot 约束里：
+
+\begin{GuideVerbatim}
+100 -> 010 -> 001
+\end{GuideVerbatim}
+
+所有移动都合法。
+
+\subsection*{Feasible subspace}
+
+Feasible subspace 是满足某些约束的状态集合。
+
+例如 exactly-one 的可行子空间：
+
+\begin{GuideVerbatim}
+{100, 010, 001}
+\end{GuideVerbatim}
+
+Constrained mixer 的目标是：
+
+\begin{GuideVerbatim}
+如果初始态在 feasible subspace 里，mixer 作用后仍然留在 feasible subspace 里。
+\end{GuideVerbatim}
+
+这样测量结果天然满足被 mixer 覆盖的约束。
+
+\subsection*{Exactly-k / Fixed Hamming Weight}
+
+Exactly-k 是：
+
+\[
+\sum_{i} x_{i} = k
+\]
+
+也叫固定 Hamming weight。比如投资组合里“必须选 5 只资产”。
+
+XY mixer 很适合这类约束，因为交换 \texttt{10 <-> 01} 会保持 1 的总数不变。
+
+这比用 penalty 处理 cardinality 更优雅：算法不会把概率浪费在不满足选 k 个的状态上。
+
+\subsection*{One-hot assignment}
+
+很多赛题有 assignment 结构：
+
+\begin{GuideVerbatim}
+每个任务必须分配给一个机器
+每个客户必须由一辆车服务
+每个时间槽必须选择一种状态
+\end{GuideVerbatim}
+
+这些都可以写成一组组 one-hot。
+
+对每一组 one-hot，使用组内 XY mixer，就能保持“每组选一个”。
+
+如果还有跨组约束，比如总预算、容量、路径连续性，它们未必被 XY mixer 自动保持，仍然需要 penalty、repair 或 hybrid 处理。
+
+\subsection*{Warm-start 的直觉}
+
+标准 QAOA 常从均匀叠加开始。Warm-start 说：如果经典算法已经给了一个不错的方向，为什么要假装一无所知？
+
+例如连续松弛解给出：
+
+\[
+\begin{aligned}
+x_{a} = 0.85\\
+x_{b} = 0.10\\
+x_{c} = 0.05
+\end{aligned}
+\]
+
+这说明 \texttt{model\_a} 很可能好。Warm-start 可以把初始态或 mixer 参数设计得更偏向这些高置信度选择。
+
+Warm-start 的价值是减少盲目搜索，把经典 relaxation 的信息带进量子线路。
+
+\subsection*{One-hot warm-start}
+
+对 one-hot 组，连续松弛可能给一组概率：
+
+\begin{GuideVerbatim}
+[0.70, 0.20, 0.10]
+\end{GuideVerbatim}
+
+这可以用来构造 weighted initial state，让第一项被测到的概率更高，但不是完全锁死。
+
+比赛里这很适合讲：
+
+\begin{GuideVerbatim}
+我们不是孤立使用量子算法，而是用经典松弛引导量子搜索。
+\end{GuideVerbatim}
+
+\subsection*{Iterative warm-start}
+
+一次 warm-start 不一定够。可以迭代：
+
+\begin{GuideVerbatim}
+1. 经典 relaxation 给初始概率
+2. constrained QAOA 采样
+3. 根据样本更新置信度或固定部分变量
+4. 再运行下一轮
+\end{GuideVerbatim}
+
+这会把路线 5 和路线 6 连接起来：量子模块成为 hybrid workflow 的一部分。
+
+\subsection*{R-QAOA 的直觉}
+
+R-QAOA 是 recursive QAOA。
+
+它的思路不是一次性求完整答案，而是：
+
+\begin{GuideVerbatim}
+1. 跑 QAOA
+2. 看变量之间的相关性
+3. 固定最确定的变量或变量关系
+4. 缩小问题
+5. 递归求解
+\end{GuideVerbatim}
+
+例如如果采样里 \texttt{x\_i} 和 \texttt{x\_j} 总是相反，就可以固定关系：
+
+\[
+x_{i} = 1 - x_{j}
+\]
+
+这是一种量子启发的变量消元方法。
+
+\subsection*{比赛时能改哪些地方}
+
+选择哪些约束由 mixer 保持
+
+不是所有约束都适合 constrained mixer。先挑 one-hot、exactly-k、fixed Hamming weight 这类结构清楚的约束。
+
+Transition graph
+
+XY mixer 需要定义哪些状态之间可以交换。图太稀，搜索不充分；图太密，线路复杂。
+
+初始态
+
+可以从任意可行解、均匀 feasible state、weighted W-state、classical relaxation warm-start 开始。
+
+未覆盖约束
+
+Mixer 只能保持它覆盖的约束。预算、容量、路径等约束可能仍然需要 penalty 或 repair。
+
+和 standard QAOA 对比
+
+最有说服力的展示是：
+
+\begin{GuideVerbatim}
+penalty QAOA vs constrained mixer QAOA
+feasible ratio / best feasible objective / circuit depth
+\end{GuideVerbatim}
+
+\subsection*{常见坑}
+
+以为 constrained mixer 保持所有约束。
+
+它只保持你设计进去的约束。
+
+初始态不可行。
+
+如果初始态不在 feasible subspace，后面保持也没意义。
+
+Feasible graph 不连通。
+
+如果 mixer 的 transition graph 不能连接所有重要可行状态，算法可能永远到不了某些好解。
+
+线路成本过高。
+
+保持约束可能需要更多门、更复杂的 Trotterization。理论好看，也要看能不能跑。
+
+Warm-start 过度自信。
+
+经典 relaxation 有时会误导。Warm-start 应该引导搜索，不一定完全固定答案。
+
+\subsection*{和其他路线的关系}
+
+路线 4 给出标准 QAOA 框架。
+
+路线 5 改的是 mixer 和 initial state。
+
+路线 2 负责那些 mixer 没覆盖的约束。
+
+路线 6 可以提供 relaxation warm-start，也可以把 constrained QAOA 放进子问题求解环节。
+
+\subsection*{共读任务}
+
+请判断下面状态是否能用 XY mixer 保持约束：
+
+\begin{GuideVerbatim}
+约束：x_1 + x_2 + x_3 = 1
+合法状态：100, 010, 001
+移动：100 <-> 010, 010 <-> 001
+\end{GuideVerbatim}
+
+问题：
+
+\begin{enumerate}
+\item 所有移动后是否仍然 exactly-one？
+\item \texttt{100} 能不能到 \texttt{001}？
+\item 如果不能直接到，但可以通过 \texttt{010} 到，这个 transition graph 是否连通？
+\end{enumerate}
+
+这个小练习就是 constrained mixer 的核心。
+
+\subsection*{延伸阅读}
+
+\begin{itemize}
+\item \texttt{literature/requirements/05\_constrained\_mixer\_warm\_start\_requirements.md}
+\item Hadfield et al., Quantum Alternating Operator Ansatz
+\item Fuchs et al., constraint preserving mixers
+\item Egger et al., warm-starting quantum optimization
+\item Bravyi et al., R-QAOA
+\end{itemize}
+
+\end{document}

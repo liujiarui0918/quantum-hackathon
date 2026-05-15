@@ -23,8 +23,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             "profile": "qiskit-aer-maca",
             "qaoa_backend": "aer-gpu",
             "notes": [
-                "Routes 1, 2, 3, 5, and 6 remain deterministic CPU-side model and solver paths.",
+                "Routes 1, 2, 3, 5, 6, and 7 remain deterministic CPU-side model and solver paths.",
                 "Route 4 QAOA shot execution targets Qiskit Aer on MetaX GPU when available.",
+                "Route 7 can export QUBO graph JSONL for offline GNN/RL training on the 4x64GB GPU pool.",
             ],
         }
         if not args.skip_stress:
@@ -112,7 +113,7 @@ def run_aer_gpu_stress(
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run the six-route demo with MetaX/qiskit-aer-maca GPU adaptation.",
+        description="Run the seven-route demo with MetaX/qiskit-aer-maca GPU adaptation.",
     )
     parser.add_argument("--input", type=Path, default=None)
     parser.add_argument("--case", choices=sorted(CASE_BUILDERS), default="sample")

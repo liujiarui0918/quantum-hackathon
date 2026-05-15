@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "quantum-hackathon"
 version = "0.1.0"
-description = "QUBO, constraint, annealing, and benchmark MVP for the quantum hackathon optimization track."
+description = "QUBO, constraint, annealing, QAOA, hybrid, and learning-guided optimization MVP for the quantum hackathon track."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = []

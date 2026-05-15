@@ -1,0 +1,256 @@
+# 七条路线总图：从问题到可改进的算法方案
+
+这份总图回答一个问题：比赛当天拿到一个混合整数带约束优化题，我们到底在脑子里怎么拆它？
+
+七条路线不是七个互相孤立的模型。更像一条流水线：
+
+```text
+业务问题
+  -> 变量、目标、约束
+  -> QUBO / Ising 能量函数
+  -> 约束处理与可行性控制
+  -> 退火 / QAOA / Hybrid 子问题求解
+  -> 学习引导 warm-start / variable fixing / repair
+  -> 解码、repair、benchmark、展示
+```
+
+前六条是量子优化和量子启发优化的主线。第七条是学习引导层：它用 GNN、强化学习或轻量策略学习优化流程里的局部决策，但不替代可行性检查和最优性验证。
+
+## 先抓住一个共同例子
+
+仓库里的 `data/sample_problem.json` 可以当学习锚点。它的意思很简单：
+
+- 有三个模型候选：`model_a`、`model_b`、`model_c`。
+- 有两个增强选项：`boost_x`、`boost_y`。
+- 目标是收益最大。
+- 约束 1：三个模型里必须选且只选一个。
+- 约束 2：总资源不能超过预算。
+
+这已经包含比赛里最常见的结构：选择变量、收益目标、互斥约束、预算约束、组合增益。
+
+后面七条路线都可以围绕它理解：
+
+- QUBO / Ising：把“选哪个更好”写成能量函数。
+- 约束处理：保证“只选一个”和“别超预算”不会被求解器破坏。
+- 退火：在能量地形里反复采样低能解。
+- QAOA：用参数化量子线路制造低能解的概率分布。
+- Constrained mixer：让量子线路尽量只在合法选择之间移动。
+- Hybrid：别把整个问题硬塞给量子模块，而是拆成经典部分和小 QUBO 子问题。
+- Learning-guided optimization：学习变量重要性、初始解、修复动作和参数调度，让前面几条路线更快找到好候选。
+
+## 七条路线一句话
+
+路线 1：QUBO / Ising 建模
+
+把离散优化问题改写成二次能量函数。低能量代表好解，变量只能是 0/1 或 spin。
+
+路线 2：约束处理、编码、罚函数
+
+让求解器别只追求低能量却给出非法答案。核心是 penalty、encoding、feasibility check、repair。
+
+路线 3：Quantum Annealing / Simulated Annealing
+
+把 QUBO 当成能量地形，通过退火过程找低能样本。它稳、好讲、适合做第一个能跑通的求解路线。
+
+路线 4：QAOA / VQA
+
+用量子门模型构造参数化线路，交替执行 cost layer 和 mixer layer，再用经典优化器调参数。
+
+路线 5：Constrained Mixer / Warm-start / XY Mixer
+
+不再只靠罚函数惩罚非法解，而是设计“只在可行空间里移动”的量子操作。它是理论亮点路线。
+
+路线 6：Hybrid MILP / MIQP 分解
+
+用经典优化处理大框架，把量子或量子启发算法用作小规模离散子问题求解器。它是最稳的比赛工程路线。
+
+路线 7：Learning-Guided Optimization / 神经网络辅助混合优化
+
+把 QUBO 或 MILP 表示成图，学习 warm-start、变量固定、branching、repair 和 QAOA/退火参数初值。它适合使用 4 张 64GB GPU，但它本质是启发式增强，不是最优性证明。
+
+## 共同词表
+
+变量
+
+你能控制的选择。例如选不选某个模型、某辆车走不走某条边、某台机组某时段开不开。
+
+目标函数
+
+你想优化的分数。例如最大收益、最小成本、最小延迟、最大服务质量。
+
+约束
+
+合法性规则。例如只能选一个、资源不能超、任务必须被完成、路径必须连续。
+
+可行解
+
+满足所有硬约束的解。比赛里要特别小心：很多量子或启发式方法会输出低能但不可行的 bitstring。
+
+QUBO
+
+Quadratic Unconstrained Binary Optimization。标准形式是：
+
+```text
+minimize E(x) = c + sum_i q_i x_i + sum_{i<j} q_ij x_i x_j
+x_i in {0, 1}
+```
+
+它叫 unconstrained，不是因为原问题没有约束，而是因为约束通常被塞进 penalty 里了。
+
+Ising
+
+物理里常用的 spin 形式：
+
+```text
+minimize H(s) = C + sum_i h_i s_i + sum_{i<j} J_ij s_i s_j
+s_i in {-1, +1}
+```
+
+QUBO 和 Ising 可以互转，常用关系是 `s = 2x - 1` 或 `x = (s + 1) / 2`。
+
+Hamiltonian
+
+在量子算法里，Hamiltonian 可以粗略理解成“能量函数的量子版本”。QAOA 的 cost Hamiltonian 就是在奖励低成本 bitstring。
+
+Sampler
+
+采样器。它不一定证明最优，只是反复吐出候选解和能量。退火器、QAOA 测量结果都可以看作 samples。
+
+Ansatz
+
+参数化量子线路的结构模板。QAOA 的 ansatz 由 cost layer 和 mixer layer 交替组成。
+
+Mixer
+
+让量子态在不同 bitstring 之间移动的操作。标准 X mixer 会独立翻转每个 bit；XY mixer 更像“把一个 1 移到另一个位置”，能保持固定选择数。
+
+Relaxation
+
+把离散变量放松成连续变量。例如把 `x in {0,1}` 放松成 `0 <= x <= 1`。它给出一个容易求的近似方向，但结果通常不是合法整数解。
+
+Repair
+
+把求解器输出的非法解修成合法解。比如预算超了，就删掉性价比最低的选择。
+
+Warm-start
+
+先给求解器一个较好的初始解、初始概率或初始参数。它不保证最优，但能减少盲搜。
+
+Variable fixing
+
+把高置信度变量先固定，只把不确定变量留给 QUBO、QAOA、退火或 hybrid 子问题。固定错了会伤害解，所以必须保留回退和 benchmark。
+
+Learning-guided policy
+
+学习一个局部策略，例如“哪个 bit 更可能为 1”“哪个变量适合分支”“下一步 repair 翻哪个变量”。它服务优化流程，而不是代替求解器。
+
+## 一条路线的五个检查问题
+
+学任何一条路线时，都问这五个问题：
+
+1. 搜索空间是什么？
+2. 能量函数或目标函数怎么定义？
+3. 算法允许怎么移动？
+4. 如何保证或恢复可行性？
+5. 比赛时我们能改哪些旋钮？
+
+这五个问题比背公式更重要。能回答它们，就能在赛题变形时改模型。
+
+## 路线之间的关系
+
+路线 1 是语言层。
+
+没有 QUBO / Ising，退火、QAOA 和很多 quantum-inspired 方法都缺输入。
+
+路线 2 是安全层。
+
+没有约束处理，算法可能很努力地找到一个低能量的非法答案。评委看到不可行解，不会因为你用了量子算法就加分。
+
+路线 3 是第一个求解层。
+
+模拟退火和量子退火都吃 QUBO/BQM。它们适合先做稳定 baseline。
+
+路线 6 是工程扩展层。
+
+一旦问题有连续变量、变量数太大、约束太多，就不要幻想直接全量 QUBO。先 hybrid，再把小离散块交给路线 3、4 或 5。
+
+路线 4 是量子门模型展示层。
+
+QAOA 很适合小规模 demo 和算法叙事，但要诚实面对 qubit 数、深度、shots、优化器不稳定等限制。
+
+路线 5 是理论亮点层。
+
+Constrained mixer 的价值是：有些约束不再靠巨大 penalty，而是由线路结构保持。这在 cardinality、one-hot、投资组合、分配问题里尤其有用。
+
+路线 7 是学习加速层。
+
+它从路线 1 的 QUBO 图、路线 2 的 violation、路线 3/4/5/6 的候选解里学习经验，再把 warm-start、变量固定、repair 或参数建议喂回求解流程。GPU 最适合用在这里。
+
+## 比赛时怎么选路线
+
+如果你需要第一天就跑出稳定结果：
+
+```text
+QUBO modeling + constraint checker + simulated annealing + repair
+```
+
+如果赛题包含连续变量或大规模混合整数：
+
+```text
+Hybrid relax-round-repair + small QUBO subproblem
+```
+
+如果赛题有漂亮的 one-hot / exactly-k / portfolio 结构：
+
+```text
+QAOA baseline + constrained XY mixer 对比
+```
+
+如果评委更看重工程可靠性：
+
+```text
+classical baseline + quantum-inspired solver + benchmark
+```
+
+如果评委更看重量子算法亮点：
+
+```text
+standard QAOA vs constrained QAOA vs SA
+```
+
+如果比赛环境给了大显存 GPU：
+
+```text
+QUBO graph dataset -> learning-guided policy -> warm-start / variable fixing -> SA / QAOA / Hybrid benchmark
+```
+
+## 学习顺序
+
+推荐顺序是：
+
+1. QUBO / Ising
+2. 约束处理
+3. 退火求解
+4. Hybrid 分解
+5. QAOA / VQA
+6. Constrained mixer / warm-start
+7. Learning-guided optimization
+
+这个顺序有点反直觉，因为 QAOA 和 GPU 听起来更“高级”。但真正比赛时，先懂建模和约束，后面所有量子算法和学习策略才有落脚点。
+
+## 共读任务
+
+读完这份总图后，先别急着看论文。你可以先回答三个问题：
+
+1. `sample_problem.json` 里哪个约束最容易被算法破坏？
+2. 如果 penalty 太小，会发生什么？如果太大，又会发生什么？
+3. 如果模型数量从 3 个变成 300 个，你还会直接全量 QUBO 吗？
+4. 如果神经网络很确信某些变量取值，你会直接相信它，还是把它当作 warm-start 和 variable fixing 建议？
+
+这几个问题答清楚，我们就可以进路线 1。
+
+## 延伸阅读
+
+- `literature/notes/algorithm_route_classification.md`
+- `literature/notes/literature_index.md`
+- `literature/notes/jerry_reading_plan.md`

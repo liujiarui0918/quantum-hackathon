@@ -1,6 +1,6 @@
 # 模型与算法路线分类索引
 
-更新日期：2026-05-12
+更新日期：2026-05-15
 
 ## 目标
 
@@ -146,6 +146,30 @@
 
 **计划需求文档**：`../requirements/06_hybrid_milp_miqp_requirements.md`
 
+## 路线 7：Learning-Guided Optimization / 神经网络辅助混合优化路线
+
+**开发目标**：把 QUBO / MILP / MIQP 表示成图或状态序列，训练或接入学习策略来辅助 warm-start、变量固定、branching、repair、local search 和 QAOA/退火参数调度。
+
+**核心论文**：
+
+- Bengio, Lodi, Prouvost, Machine Learning for Combinatorial Optimization: a Methodological Tour d'Horizon. https://arxiv.org/abs/1811.06128
+- Gasse et al., Exact Combinatorial Optimization with Graph Convolutional Neural Networks. https://arxiv.org/abs/1906.01629
+- Nair et al., Solving Mixed Integer Programs Using Neural Networks. https://arxiv.org/abs/2012.13349
+- Darvariu et al., Graph Reinforcement Learning for Combinatorial Optimization. https://arxiv.org/abs/2404.06492
+- Liu et al., Combinatorial Optimization with Automated Graph Neural Networks. https://arxiv.org/abs/2406.02872
+- Egger et al., Warm-starting quantum optimization. https://arxiv.org/abs/2009.10095
+
+**主要开发产物**：
+
+- QUBO graph exporter：node features、edge coefficients、label bitstring、diagnostics。
+- training JSONL builder：小规模 exact label，中规模 SA / hybrid incumbent pseudo-label。
+- warm-start policy 接口：输出每个变量取 1 的概率、候选 bitstring 和 QAOA/SA 初始建议。
+- variable fixing plan：高置信度变量固定，不确定变量进入 QUBO / QAOA / hybrid 子问题。
+- repair / local-search policy scaffold：把 violation reduction 和 objective improvement 作为训练信号。
+- benchmark 约束：学习策略必须与 exact、SA、QAOA、hybrid baseline 对比，不承诺最优性。
+
+**计划需求文档**：`../requirements/07_learning_guided_optimization_requirements.md`
+
 ## 场景论文：暂作为 benchmark 与案例库
 
 这些论文不进入第一轮理论路线分类的主线精读，但后续可以用来构造测试用例、demo 叙事和对比指标。
@@ -188,5 +212,6 @@
 4. 路线 6：Hybrid MILP / MIQP 分解。
 5. 路线 4：QAOA / VQA 标准路线。
 6. 路线 5：Constrained Mixer / Warm-start / XY Mixer。
+7. 路线 7：Learning-Guided Optimization / 神经网络辅助混合优化。
 
-这个顺序更适合开发推进：先有统一建模层和约束层，再接求解器；QAOA 与 constrained mixer 可以在小规模样例上补充创新展示。
+这个顺序更适合开发推进：先有统一建模层和约束层，再接求解器；QAOA 与 constrained mixer 可以在小规模样例上补充创新展示；learning-guided 层最后接入，用已有求解结果生成训练信号。

@@ -6,6 +6,7 @@ from quantum_hackathon import (
     FeasibleSubspaceSpec,
     HybridOptimizationProblem,
     HybridOptimizer,
+    LearningGuidedSamplerBackend,
     OneHotXYMixerStrategy,
     ProblemDecomposer,
     QaoaConfig,
@@ -17,7 +18,7 @@ from quantum_hackathon import (
 from quantum_hackathon.benchmarks.cases import exactly_one_selection
 
 
-def test_all_six_requirement_routes_have_a_runnable_integration_path():
+def test_all_seven_requirement_routes_have_a_runnable_integration_path():
     problem = exactly_one_selection()
 
     # Route 1: QUBO / Ising modeling.
@@ -40,6 +41,14 @@ def test_all_six_requirement_routes_have_a_runnable_integration_path():
     ).run([problem])
     assert annealing_result.best_feasible() is not None
     assert len(report.rows) == 2
+
+    # Route 7: learning-guided warm-start and variable fixing scaffold.
+    learning_result = LearningGuidedSamplerBackend().solve(
+        qubo_model,
+        SamplerConfig(seed=3, num_reads=8, num_sweeps=10),
+    )
+    assert learning_result.best_feasible() is not None
+    assert learning_result.diagnostics["ml_role"] == "warm_start_variable_ranking"
 
     # Route 4: standard QAOA / VQA local simulator.
     qaoa_result = QaoaRunner().solve(

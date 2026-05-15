@@ -91,7 +91,18 @@
 | `../papers/08_finance_portfolio/morapakula_2025_end_to_end_portfolio_quantum_annealing.pdf` | end-to-end portfolio QA | 从数据到解的完整流程 | Demo 管线参考 |
 | `../papers/08_finance_portfolio/mancilla_2026_constrained_portfolio_qaoa_xy_mixers.pdf` | QAOA + XY mixers portfolio | XY mixer 保持约束 | 金融 MIQP + QAOA 路线 |
 
-## 09 工具链与官方文档
+## 09 Learning-Guided Optimization / 神经网络辅助优化
+
+| 资料 | 主题 | 杰瑞重点看什么 | 比赛用途 |
+| --- | --- | --- | --- |
+| Bengio et al., https://arxiv.org/abs/1811.06128 | ML for combinatorial optimization survey | construction / improvement / branching / surrogate 的分类 | 解释为什么神经网络是优化流程助手，不是最优性保证器 |
+| Gasse et al., https://arxiv.org/abs/1906.01629 | GNN 学 MILP branching | 变量-约束二部图、branching score | route 7 的 constraint-variable graph 设计 |
+| Nair et al., https://arxiv.org/abs/2012.13349 | Neural Diving / Neural Branching | partial assignment、固定变量、缩小 MIP | 和 Hybrid fix-and-optimize 对接 |
+| Darvariu et al., https://arxiv.org/abs/2404.06492 | Graph RL for combinatorial optimization | repair / local search policy 的 MDP 视角 | 训练 violation repair 和局部搜索动作 |
+| Liu et al., https://arxiv.org/abs/2406.02872 | Automated GNN for combinatorial optimization | 图特征、架构搜索、跨问题泛化风险 | P2/P3 的 GNN policy 参考 |
+| Egger et al., https://arxiv.org/abs/2009.10095 | Warm-starting quantum optimization | 用经典松弛解初始化 QAOA | 把 ML / relaxation 输出接到 QAOA |
+
+## 10 工具链与官方文档
 
 这些资料不一定是论文，但清哥落地代码会用到。
 
@@ -107,13 +118,14 @@
 
 ## 比赛时建议的引用组合
 
-如果需要在 PPT 里放 5 个核心参考：
+如果需要在 PPT 里放 6 个核心参考：
 
 1. Glover, Kochenberger, Du, "A Tutorial on Formulating and Using QUBO Models".
 2. Lucas, "Ising formulations of many NP problems".
 3. Farhi, Goldstone, Gutmann, "A Quantum Approximate Optimization Algorithm".
 4. Hadfield et al., "From the Quantum Approximate Optimization Algorithm to a Quantum Alternating Operator Ansatz".
 5. Hen, Spedalieri, "Quantum Annealing for Constrained Optimization".
+6. Bengio, Lodi, Prouvost, "Machine Learning for Combinatorial Optimization".
 
 如果赛题落到具体场景，再补对应场景首读论文：
 
