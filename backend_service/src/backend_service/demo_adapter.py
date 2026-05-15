@@ -20,6 +20,11 @@ WEB_RUN_DEFAULTS = {
     "qaoa_max_qubits": 12,
     "qaoa_grid_size": 5,
     "qaoa_random_trials": 10,
+    "qaoa_backend": "local",
+    "aer_device": "GPU",
+    "aer_method": "statevector",
+    "aer_max_qubits": 30,
+    "aer_optimization_level": 1,
     "skip_qaoa": False,
 }
 
@@ -35,6 +40,11 @@ def build_demo_args(options: RunOptions) -> argparse.Namespace:
         qaoa_max_qubits=_opt(options, "qaoa_max_qubits"),
         qaoa_grid_size=_opt(options, "qaoa_grid_size"),
         qaoa_random_trials=_opt(options, "qaoa_random_trials"),
+        qaoa_backend=_opt(options, "qaoa_backend"),
+        aer_device=_opt(options, "aer_device"),
+        aer_method=_opt(options, "aer_method"),
+        aer_max_qubits=_opt(options, "aer_max_qubits"),
+        aer_optimization_level=_opt(options, "aer_optimization_level"),
         skip_qaoa=_opt(options, "skip_qaoa"),
     )
 

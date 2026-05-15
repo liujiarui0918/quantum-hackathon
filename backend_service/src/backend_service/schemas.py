@@ -13,6 +13,11 @@ class RunOptions(BaseModel):
     qaoa_max_qubits: int = Field(default=12, ge=1)
     qaoa_grid_size: int = Field(default=5, ge=1)
     qaoa_random_trials: int = Field(default=10, ge=1)
+    qaoa_backend: str = Field(default="local")
+    aer_device: str = Field(default="GPU")
+    aer_method: str = Field(default="statevector")
+    aer_max_qubits: int = Field(default=30, ge=1)
+    aer_optimization_level: int = Field(default=1, ge=0)
     skip_qaoa: bool = False
 
 

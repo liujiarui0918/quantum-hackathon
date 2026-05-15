@@ -232,3 +232,91 @@
   height: 100%;
   object-fit: cover;
 }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(110, 203, 255, 0.24);
+  background: rgba(110, 203, 255, 0.08);
+  color: rgba(185, 230, 255, 0.95);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+}
+
+.quantumStack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.quantumGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 1100px) {
+  .quantumGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .quantumGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.metricCard {
+  border: 1px solid rgba(110, 203, 255, 0.18);
+  border-radius: 12px;
+  padding: 12px;
+  background: linear-gradient(135deg, rgba(11, 31, 58, 0.72), rgba(6, 12, 28, 0.52));
+  min-width: 0;
+}
+
+.metricCard span,
+.metricCard strong {
+  display: block;
+}
+
+.metricCard strong {
+  margin-top: 6px;
+  color: rgba(232, 247, 255, 0.98);
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+  word-break: break-word;
+}
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(82, 196, 26, 0.24);
+  border-radius: 999px;
+  padding: 4px 10px;
+  color: rgba(214, 255, 220, 0.96);
+  background: rgba(82, 196, 26, 0.09);
+  font-size: 12px;
+}
+
+.benchmarkGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 760px) {
+  .benchmarkGrid {
+    grid-template-columns: 1fr;
+  }
+}

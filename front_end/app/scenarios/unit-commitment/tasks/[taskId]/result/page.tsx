@@ -6,6 +6,12 @@ import { useParams } from 'next/navigation';
 import axios from 'axios';
 import { api } from '@/lib/axios-client';
 import type { TaskResultPayload } from '@/lib/types';
+import type {
+  QuantumApiErrorResponse,
+  QuantumSampleProblemResponse,
+  QuantumSolveResponse,
+  QuantumVisualization,
+} from '@/lib/quantum-types';
 import { MiniPowerChart } from '@/components/MiniPowerChart';
 import styles from './result.module.css';
 
@@ -14,6 +20,9 @@ export default function TaskResultPage() {
   const taskId = params?.taskId;
   const [data, setData] = useState<TaskResultPayload | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [quantum, setQuantum] = useState<QuantumVisualization | null>(null);
+  const [quantumErr, setQuantumErr] = useState<string | null>(null);
+  const [quantumLoading, setQuantumLoading] = useState(false);
 
   useEffect(() => {
     if (!taskId) return;
@@ -45,6 +54,38 @@ export default function TaskResultPage() {
       cancelled = true;
     };
   }, [taskId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setQuantumLoading(true);
+    setQuantumErr(null);
+    (async () => {
+      try {
+        const sample = await api.get<QuantumSampleProblemResponse>('/api/quantum/sample-problem');
+        const solved = await api.post<QuantumSolveResponse>('/api/quantum/solve', {
+          problem: sample.data.problem,
+          run_options: {
+            seed: 7,
+            qaoa_max_qubits: 12,
+          },
+        });
+        if (!cancelled) {
+          setQuantum(solved.data.visualization);
+          setQuantumErr(null);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setQuantum(null);
+          setQuantumErr(readQuantumError(e));
+        }
+      } finally {
+        if (!cancelled) setQuantumLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const title = useMemo(() => '任务结果', []);
 
@@ -149,6 +190,8 @@ export default function TaskResultPage() {
             </div>
           </section>
 
+          <QuantumResultSection data={quantum} error={quantumErr} loading={quantumLoading} />
+
           <section className={styles.section}>
             <div className={styles.sectionTitle}>结果明细</div>
 
@@ -223,6 +266,119 @@ export default function TaskResultPage() {
       ) : null}
     </main>
   );
+}
+
+function QuantumResultSection({ data, error, loading }: { data: QuantumVisualization | null; error: string | null; loading: boolean }) {
+  const quantum = data?.quantum;
+  const scenario = data?.scenario;
+  const best = quantum?.best_solution;
+  const benchmarkRows = quantum?.benchmark_rows ?? [];
+  const qaoaCircuit = quantum?.qaoa?.circuit;
+  const qaoaGateEstimate = qaoaCircuit?.gate_count_estimate;
+
+  return (
+    <section className={styles.section}>
+      <div className={styles.sectionTitle}>后端量化优化结果<span className={styles.badge}>FastAPI / 本地模拟</span></div>
+      {loading ? <div className="muted">正在通过 /api/quantum/solve 获取后端求解结果…</div> : null}
+      {error ? <div className={styles.error}>{error}</div> : null}
+      {data ? (
+        <div className={styles.quantumStack}>
+          <div className={styles.quantumGrid}>
+            <div className={styles.metricCard}>
+              <span className={styles.infoLabel}>问题名称</span>
+              <strong>{quantum?.problem?.name ?? scenario?.scenario_id ?? '-'}</strong>
+            </div>
+            <div className={styles.metricCard}>
+              <span className={styles.infoLabel}>最优业务目标</span>
+              <strong>{formatNumber(best?.objective_value)}</strong>
+            </div>
+            <div className={styles.metricCard}>
+              <span className={styles.infoLabel}>可行性</span>
+              <strong className={best?.is_feasible ? 'pass' : 'fail'}>{best?.is_feasible ? '可行' : '不可行'}</strong>
+            </div>
+            <div className={styles.metricCard}>
+              <span className={styles.infoLabel}>QUBO bits</span>
+              <strong>{quantum?.problem?.num_qubo_bits ?? '-'}</strong>
+            </div>
+          </div>
+
+          <div className={styles.block}>
+            <div className={styles.subTitle}>场景映射</div>
+            <div className={styles.chipRow}>
+              {(scenario?.selected_models ?? []).map((name) => <span key={name} className={styles.chip}>模型：{name}</span>)}
+              {(scenario?.enabled_boosts ?? []).map((name) => <span key={name} className={styles.chip}>增强：{name}</span>)}
+              {!(scenario?.selected_models?.length || scenario?.enabled_boosts?.length) ? <span className="muted">暂无选中变量</span> : null}
+            </div>
+          </div>
+
+          <div className={styles.block}>
+            <div className={styles.subTitle}>Solver Benchmark</div>
+            <div className={styles.benchmarkGrid}>
+              {benchmarkRows.map((row) => (
+                <div key={`${row.solver}-${row.status}`} className={styles.infoCard}>
+                  <div className={styles.infoMain}>
+                    <span className={styles.infoLabel}>{row.solver ?? 'solver'}</span>
+                    <span className={row.status === 'ran' ? 'pass' : 'fail'}>{row.status}</span>
+                  </div>
+                  <div className={styles.infoReason}>目标值：{formatNumber(row.best_feasible_objective)}；可行率：{formatPercent(row.feasible_sample_ratio)}；耗时：{formatMs(row.total_ms)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className={styles.block}>
+            <div className={styles.subTitle}>QAOA / Constrained QAOA</div>
+            <div className={styles.infoGrid}>
+              <div className={styles.infoCard}>
+                <div className={styles.infoMain}>
+                  <span className={styles.infoLabel}>QAOA 状态</span>
+                  <span className={quantum?.qaoa?.status === 'ran' ? 'pass' : 'fail'}>{quantum?.qaoa?.status ?? '-'}</span>
+                </div>
+                <div className={styles.infoReason}>backend: {quantum?.qaoa?.backend ?? qaoaCircuit?.execution_backend ?? '-'}</div>
+              </div>
+              <div className={styles.infoCard}>
+                <div className={styles.infoMain}>
+                  <span className={styles.infoLabel}>量子线路</span>
+                  <span className={styles.infoValue}>{qaoaCircuit?.num_qubits ?? '-'} qubits / {qaoaCircuit?.layers ?? '-'} layers</span>
+                </div>
+                <div className={styles.infoReason}>H: {qaoaGateEstimate?.h ?? '-'}；RZ/layer: {qaoaGateEstimate?.rz_per_layer ?? '-'}；RZZ/layer: {qaoaGateEstimate?.rzz_per_layer ?? '-'}</div>
+              </div>
+              <div className={styles.infoCard}>
+                <div className={styles.infoMain}>
+                  <span className={styles.infoLabel}>Constrained QAOA</span>
+                  <span className={quantum?.constrained_qaoa?.status === 'ran' ? 'pass' : 'fail'}>{quantum?.constrained_qaoa?.status ?? '-'}</span>
+                </div>
+                <div className={styles.infoReason}>route: {quantum?.constrained_qaoa?.diagnostics?.route ?? '-'}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function readQuantumError(e: unknown) {
+  if (axios.isAxiosError(e)) {
+    const payload = e.response?.data as QuantumApiErrorResponse | undefined;
+    return payload?.error?.message ?? '后端量化求解失败，请确认 backend_service 已启动。';
+  }
+  return '后端量化求解失败，请稍后重试。';
+}
+
+function formatNumber(value: number | null | undefined) {
+  if (value === null || value === undefined) return '-';
+  return Number.isInteger(value) ? String(value) : value.toFixed(3);
+}
+
+function formatPercent(value: number | null | undefined) {
+  if (value === null || value === undefined) return '-';
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+function formatMs(value: number | null | undefined) {
+  if (value === null || value === undefined) return '-';
+  return `${value.toFixed(1)} ms`;
 }
 
 function renderTaskFieldValue(task: TaskResultPayload['task'], key: string) {
