@@ -1,29 +1,29 @@
 instance,method,family,status,feasible,objective,official,gap_percent,runtime_ms,peak_kib,candidates_evaluated,binary_variables,search_bits,qaoa_qubits,qaoa_layers,qaoa_shots,qaoa_rzz_per_layer,notes
-miqp_sample_A,zero_x_lp,classical_baseline,feasible,True,7.275696,106.094636,93.142258,1771.678,24227.999,1,15,0,0,0,0,0,x=0
-miqp_sample_A,marginal_greedy_lp,classical_baseline,feasible,True,97.720843,106.094636,7.892758,28.669,23.945,15,15,15,0,0,0,0,adds positive marginal bits under B constraints
-miqp_sample_A,structural_warm_start_lp,learning_guided_baseline,feasible,True,97.720843,106.094636,7.892758,19.272,23.246,1,15,15,0,0,0,0,MIQP structural warm start
-miqp_sample_A,random_repair_lp,classical_stochastic,feasible,True,105.090577,106.094636,0.946381,310.235,54.457,96,15,15,0,0,0,0,96 random repaired candidates
-miqp_sample_A,genetic_repair_lp,classical_metaheuristic,feasible,True,106.094636,106.094636,0.0,274.222,152.871,61,15,15,0,0,0,0,"genetic algorithm with population=24, generations=8"
-miqp_sample_A,binary_pso_repair_lp,classical_metaheuristic,feasible,True,106.094636,106.094636,0.0,534.924,302.443,148,15,15,0,0,0,0,"binary PSO with swarm_size=24, iterations=8"
-miqp_sample_A,exact_binary_lp,classical_exact,feasible,True,106.094636,106.094636,0.0,4484.609,213.916,1152,15,15,0,0,0,0,enumerates all binary x passing B constraints
-miqp_sample_A,global_binary_sa_lp,classical_annealing,feasible,True,105.090577,106.094636,0.946381,3699.498,96.346,9,15,16,0,0,0,0,simulated_annealing; qubo_bits=16; feasible_sample_ratio=1.000
-miqp_sample_A,global_learning_guided_lp,learning_guided_baseline,feasible,True,98.547928,106.094636,7.113185,61.99,73.999,3,15,16,0,0,0,0,learning_guided; qubo_bits=16; feasible_sample_ratio=1.000
-miqp_sample_A,block_sa_lp,classical_annealing,feasible,True,105.090577,106.094636,0.946381,1502.254,64.13,8,15,11,0,0,0,0,"simulated_annealing on selected block [1, 2, 3, 4, 5, 9, 10, 12, 13, 14]; feasible_sample_ratio=1.000"
-miqp_sample_A,block_learning_guided_lp,learning_guided_baseline,feasible,True,98.547928,106.094636,7.113185,35.95,56.092,3,15,11,0,0,0,0,"learning_guided on selected block [1, 2, 3, 4, 5, 9, 10, 12, 13, 14]; feasible_sample_ratio=1.000"
-miqp_sample_A,block_qaoa_lp,quantum_model,feasible,True,105.090577,106.094636,0.946381,5727.841,278.109,137,15,10,10,1,160,45,"objective-only QAOA on block [1, 2, 3, 4, 5, 9, 10, 12, 13, 14]; candidates repaired against B constraints"
+miqp_sample_A,zero_x_lp,classical_baseline,feasible,True,7.275696,106.094636,93.142258,1406.306,24228.154,1,15,0,0,0,0,0,x=0
+miqp_sample_A,marginal_greedy_lp,classical_baseline,feasible,True,97.720843,106.094636,7.892758,23.058,23.945,15,15,15,0,0,0,0,adds positive marginal bits under B constraints
+miqp_sample_A,structural_warm_start_lp,learning_guided_baseline,feasible,True,97.720843,106.094636,7.892758,15.103,23.246,1,15,15,0,0,0,0,MIQP structural warm start
+miqp_sample_A,random_repair_lp,classical_stochastic,feasible,True,105.090577,106.094636,0.946381,236.833,61.248,96,15,15,0,0,0,0,96 random repaired candidates
+miqp_sample_A,genetic_repair_lp,classical_metaheuristic,feasible,True,106.094636,106.094636,0.0,202.125,155.011,61,15,15,0,0,0,0,"genetic algorithm with population=24, generations=8"
+miqp_sample_A,binary_pso_repair_lp,classical_metaheuristic,feasible,True,106.094636,106.094636,0.0,445.625,301.78,148,15,15,0,0,0,0,"binary PSO with swarm_size=24, iterations=8"
+miqp_sample_A,exact_binary_lp,classical_exact,feasible,True,106.094636,106.094636,0.0,3526.729,213.324,1152,15,15,0,0,0,0,enumerates all binary x passing B constraints
+miqp_sample_A,global_binary_sa_lp,classical_annealing,feasible,True,105.090577,106.094636,0.946381,3014.389,96.475,9,15,16,0,0,0,0,simulated_annealing; qubo_bits=16; feasible_sample_ratio=1.000
+miqp_sample_A,global_learning_guided_lp,learning_guided_baseline,feasible,True,98.547928,106.094636,7.113185,42.298,73.999,3,15,16,0,0,0,0,learning_guided; qubo_bits=16; feasible_sample_ratio=1.000
+miqp_sample_A,block_sa_lp,classical_annealing,feasible,True,105.090577,106.094636,0.946381,1181.426,63.958,8,15,11,0,0,0,0,"simulated_annealing on selected block [1, 2, 3, 4, 5, 9, 10, 12, 13, 14]; feasible_sample_ratio=1.000"
+miqp_sample_A,block_learning_guided_lp,learning_guided_baseline,feasible,True,98.547928,106.094636,7.113185,27.041,56.049,3,15,11,0,0,0,0,"learning_guided on selected block [1, 2, 3, 4, 5, 9, 10, 12, 13, 14]; feasible_sample_ratio=1.000"
+miqp_sample_A,block_qaoa_lp,quantum_model,feasible,True,105.090577,106.094636,0.946381,4812.949,278.109,137,15,10,10,1,160,45,"objective-only QAOA on block [1, 2, 3, 4, 5, 9, 10, 12, 13, 14]; candidates repaired against B constraints"
 miqp_sample_A,miqp_aware_route7,proposed_hybrid_quantum,feasible,True,106.094636,106.094636,0.0,2087.065,,1152,15,12,0,0,0,0,loaded existing result; runtime loaded from route7 JSON; exact_binary_plus_continuous_lp; best_seed=7
 miqp_sample_A,official_reference,reference,reference,True,106.094636,106.094636,0.0,0.0,0.0,0,15,0,0,0,0,0,provided in sample data; not used as a solver
-miqp_sample_B,zero_x_lp,classical_baseline,feasible,True,1.30021,610.266639,99.786944,5.552,40.671,1,80,0,0,0,0,0,x=0
-miqp_sample_B,marginal_greedy_lp,classical_baseline,feasible,True,544.475466,610.266639,10.780726,218.316,54.923,80,80,80,0,0,0,0,adds positive marginal bits under B constraints
-miqp_sample_B,structural_warm_start_lp,learning_guided_baseline,feasible,True,472.797422,610.266639,22.526091,353.827,53.352,1,80,80,0,0,0,0,MIQP structural warm start
-miqp_sample_B,random_repair_lp,classical_stochastic,feasible,True,381.824684,610.266639,37.433138,562.35,68.164,96,80,80,0,0,0,0,96 random repaired candidates
-miqp_sample_B,genetic_repair_lp,classical_metaheuristic,feasible,True,565.761894,610.266639,7.292672,1346.739,560.3,146,80,80,0,0,0,0,"genetic algorithm with population=24, generations=8"
-miqp_sample_B,binary_pso_repair_lp,classical_metaheuristic,feasible,True,544.475466,610.266639,10.780726,1837.605,719.345,192,80,80,0,0,0,0,"binary PSO with swarm_size=24, iterations=8"
+miqp_sample_B,zero_x_lp,classical_baseline,feasible,True,1.30021,610.266639,99.786944,4.813,40.725,1,80,0,0,0,0,0,x=0
+miqp_sample_B,marginal_greedy_lp,classical_baseline,feasible,True,544.475466,610.266639,10.780726,184.253,53.219,80,80,80,0,0,0,0,adds positive marginal bits under B constraints
+miqp_sample_B,structural_warm_start_lp,learning_guided_baseline,feasible,True,472.797422,610.266639,22.526091,290.473,53.352,1,80,80,0,0,0,0,MIQP structural warm start
+miqp_sample_B,random_repair_lp,classical_stochastic,feasible,True,381.824684,610.266639,37.433138,459.782,70.45,96,80,80,0,0,0,0,96 random repaired candidates
+miqp_sample_B,genetic_repair_lp,classical_metaheuristic,feasible,True,565.761894,610.266639,7.292672,1116.147,555.833,146,80,80,0,0,0,0,"genetic algorithm with population=24, generations=8"
+miqp_sample_B,binary_pso_repair_lp,classical_metaheuristic,feasible,True,544.475466,610.266639,10.780726,1467.99,719.781,192,80,80,0,0,0,0,"binary PSO with swarm_size=24, iterations=8"
 miqp_sample_B,exact_binary_lp,classical_exact,skipped,False,,610.266639,,0.0,0.0,0,80,80,0,0,0,0,skipped because n=80 would require 2^n enumeration
 miqp_sample_B,global_binary_sa_lp,classical_annealing,skipped,False,,610.266639,,0.0,0.0,0,80,80,0,0,0,0,skipped: n=80 exceeds global binary cap 32
 miqp_sample_B,global_learning_guided_lp,learning_guided_baseline,skipped,False,,610.266639,,0.0,0.0,0,80,80,0,0,0,0,skipped: n=80 exceeds global binary cap 32
-miqp_sample_B,block_sa_lp,classical_annealing,feasible,True,492.115433,610.266639,19.360587,9474.612,194.341,44,80,26,0,0,0,0,"simulated_annealing on selected block [35, 37, 41, 45, 51, 52, 63, 71, 73, 79]; feasible_sample_ratio=0.125"
-miqp_sample_B,block_learning_guided_lp,learning_guided_baseline,feasible,True,454.884678,610.266639,25.461323,200.211,141.455,6,80,26,0,0,0,0,"learning_guided on selected block [35, 37, 41, 45, 51, 52, 63, 71, 73, 79]; feasible_sample_ratio=0.875"
-miqp_sample_B,block_qaoa_lp,quantum_model,feasible,True,488.070768,610.266639,20.023357,5999.01,287.998,146,80,10,10,1,160,45,"objective-only QAOA on block [35, 37, 41, 45, 51, 52, 63, 71, 73, 79]; candidates repaired against B constraints"
-miqp_sample_B,miqp_aware_route7,proposed_hybrid_quantum,feasible,True,594.648146,610.266639,2.55929,14302.148,,180,80,20,0,0,0,0,loaded existing result; runtime loaded from route7 JSON; miqp_aware_block_heuristic; best_seed=11
+miqp_sample_B,block_sa_lp,classical_annealing,feasible,True,492.115433,610.266639,19.360587,7774.01,193.876,44,80,26,0,0,0,0,"simulated_annealing on selected block [35, 37, 41, 45, 51, 52, 63, 71, 73, 79]; feasible_sample_ratio=0.125"
+miqp_sample_B,block_learning_guided_lp,learning_guided_baseline,feasible,True,454.884678,610.266639,25.461323,170.028,141.515,6,80,26,0,0,0,0,"learning_guided on selected block [35, 37, 41, 45, 51, 52, 63, 71, 73, 79]; feasible_sample_ratio=0.875"
+miqp_sample_B,block_qaoa_lp,quantum_model,feasible,True,488.070768,610.266639,20.023357,5135.925,288.044,146,80,10,10,1,160,45,"objective-only QAOA on block [35, 37, 41, 45, 51, 52, 63, 71, 73, 79]; candidates repaired against B constraints"
+miqp_sample_B,miqp_aware_route7,proposed_hybrid_quantum,feasible,True,610.266639,610.266639,0.0,83644.468,,768,80,20,0,0,0,0,loaded existing result; runtime loaded from route7 JSON; miqp_aware_block_heuristic; best_seed=11
 miqp_sample_B,official_reference,reference,reference,True,610.266639,610.266639,0.0,0.0,0.0,0,80,0,0,0,0,0,provided in sample data; not used as a solver

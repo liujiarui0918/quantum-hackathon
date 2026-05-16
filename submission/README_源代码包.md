@@ -23,7 +23,7 @@ python -m pip install -e ".[dev]"
 python -m pytest -q
 ```
 
-当前本地完整验证结果：`54 passed`。
+当前本地完整验证结果：`56 passed`。
 
 ## 运行官方小规模样例
 
@@ -48,9 +48,20 @@ python -m quantum_hackathon.miqp_cli \
   --solution-npz results/miqp_sample_B_solution.npz \
   --exact-binary-limit 16 \
   --max-block-size 20 \
-  --candidate-limit 128 \
-  --max-iterations 5 \
-  --seeds 3,7,11,19
+  --candidate-limit 192 \
+  --max-iterations 8 \
+  --seed 11 \
+  --block-pool \
+  --blocks-per-iteration 3 \
+  --candidate-budget-per-block 64 \
+  --max-lp-evals 800 \
+  --qaoa-max-qubits 0 \
+  --weight-objective 0.25 \
+  --weight-coupling 0.25 \
+  --weight-mixed 0.25 \
+  --weight-binary 0.25 \
+  --post-polish-rounds 2 \
+  --polish-candidate-limit 128
 ```
 
 Windows PowerShell 中同样可以运行，只需保持路径引号。
