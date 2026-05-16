@@ -20,12 +20,19 @@
 
 .field {
   display: grid;
-  gap: 6px;
+  grid-template-columns: 190px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.fieldSpaced {
+  margin-top: 10px;
 }
 
 .label {
   font-size: 12px;
   color: rgba(138, 164, 191, 0.95);
+  white-space: nowrap;
 }
 
 .input,
@@ -58,8 +65,15 @@
 
 @media (max-width: 900px) {
   .row2,
-  .row3 {
+  .row3,
+  .row4 {
     grid-template-columns: 1fr;
+  }
+
+  .field {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    gap: 6px;
   }
 }
 
@@ -71,4 +85,9 @@
   font-size: 12px;
   color: rgba(61, 255, 206, 0.95);
   font-variant-numeric: tabular-nums;
+}
+
+.row4 {
+  display: grid;
+  gap: 10px;
 }

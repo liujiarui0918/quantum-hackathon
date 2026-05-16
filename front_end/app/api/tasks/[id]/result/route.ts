@@ -7,7 +7,7 @@ type Ctx = { params: Promise<{ id: string }> };
 export async function GET(_: Request, ctx: Ctx) {
   await connectMongo().catch(() => null);
   const { id } = await ctx.params;
-  const r = lookupTaskResult(id);
+  const r = await lookupTaskResult(id);
   if (!r.ok) {
     if (r.reason === 'not_found') {
       return NextResponse.json({ error: 'not_found' }, { status: 404 });
