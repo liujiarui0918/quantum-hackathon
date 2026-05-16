@@ -18,6 +18,34 @@ export type DatasetExecParams = {
   'weight-binary'?: number;
   'post-polish-rounds'?: number;
   'polish-candidate-limit'?: number;
+  route7Alias?: string;
+  baselineStudy?: {
+    enabled: boolean;
+    inputs?: string[];
+    'output-dir': string;
+    'route7-json-dir': string;
+    'random-reads': number;
+    'sa-reads': number;
+    'sa-sweeps': number;
+    'qaoa-block-size': number;
+    'qaoa-shots': number;
+    'meta-population': number;
+    'meta-iterations': number;
+  };
+};
+
+const BASELINE_STUDY_CONFIG: NonNullable<DatasetExecParams['baselineStudy']> = {
+  enabled: true,
+  inputs: ['{input}'],
+  'output-dir': 'results/{taskId}_baseline_study',
+  'route7-json-dir': 'results/{taskId}_route7_json',
+  'random-reads': 96,
+  'sa-reads': 48,
+  'sa-sweeps': 80,
+  'qaoa-block-size': 10,
+  'qaoa-shots': 160,
+  'meta-population': 24,
+  'meta-iterations': 8,
 };
 
 const DATASET_EXEC_CONFIG: Record<string, DatasetExecParams> = {
@@ -27,10 +55,12 @@ const DATASET_EXEC_CONFIG: Record<string, DatasetExecParams> = {
     'exact-binary-limit': 15,
     'max-block-size': 12,
     'candidate-limit': 64,
+    route7Alias: 'results/{instanceName}_route7.json',
+    baselineStudy: BASELINE_STUDY_CONFIG,
   },
   'miqp_sample_B.npz': {
     input: '量化优化/量化优化/2026量子计算大赛·混合整数优化问题赛道小规模测试数据/miqp_sample_B.npz',
-    'solution-npz': 'results/server_miqp_sample_B_solution.npz',
+    'solution-npz': 'results/miqp_sample_B_solution.npz',
     'exact-binary-limit': 16,
     'max-block-size': 20,
     'candidate-limit': 192,
@@ -47,6 +77,8 @@ const DATASET_EXEC_CONFIG: Record<string, DatasetExecParams> = {
     'weight-binary': 0.25,
     'post-polish-rounds': 2,
     'polish-candidate-limit': 128,
+    route7Alias: 'results/{instanceName}_route7.json',
+    baselineStudy: BASELINE_STUDY_CONFIG,
   },
 };
 

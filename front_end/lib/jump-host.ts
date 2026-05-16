@@ -13,6 +13,53 @@ function shEscape(v: string): string {
   return `'${v.replace(/'/g, `'"'"'`)}'`;
 }
 
+const MIQP_CLI_PARAM_KEYS = new Set([
+  'input',
+  'solution-npz',
+  'exact-binary-limit',
+  'max-block-size',
+  'candidate-limit',
+  'max-iterations',
+  'seed',
+  'seeds',
+  'block-pool',
+  'blocks-per-iteration',
+  'candidate-budget-per-block',
+  'max-lp-evals',
+  'qaoa-max-qubits',
+  'weight-objective',
+  'weight-coupling',
+  'weight-mixed',
+  'weight-binary',
+  'post-polish-rounds',
+  'polish-candidate-limit',
+]);
+
+function instanceNameFromInput(input: string): string {
+  const fileName = input.split(/[\\/]/).pop() ?? input;
+  return fileName.replace(/\.npz$/i, '');
+}
+
+function renderTemplate(template: string, ctx: Record<string, string>): string {
+  return template.replace(/\{([a-zA-Z][a-zA-Z0-9]*)\}/g, (match, key: string) => ctx[key] ?? match);
+}
+
+function stripAnsi(v: string): string {
+  return v
+    .replace(/\x1B\][^\x07]*(?:\x07|\x1B\\)/g, '')
+    .replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+}
+
+function outputTail(v: string, maxLen = 4000): string {
+  return v.length > maxLen ? v.slice(-maxLen) : v;
+}
+
+function hasShellPrompt(output: string): boolean {
+  const clean = stripAnsi(output).replace(/\r/g, '');
+  const tail = clean.slice(-500);
+  return /(?:^|\n)[^\n]*[\w.-]+@[\w.-]+:[^\n]*[$#]\s*$/.test(tail);
+}
+
 function createConnection(): Promise<Client> {
   return new Promise((resolve, reject) => {
     const conn = new Client();
@@ -82,11 +129,20 @@ async function execRemote(command: string): Promise<{ stdout: string; stderr: st
       let stderr = '';
       const sentinel = `__QH_EXIT_${Date.now()}__`;
       let done = false;
+      let commandSent = false;
+
+      const sendCommand = () => {
+        if (commandSent || done) return;
+        commandSent = true;
+        stream.write(`${command}\n`);
+        stream.write(`echo ${sentinel}:$?\n`);
+      };
+
       const timer = setTimeout(() => {
         if (done) return;
         done = true;
         stream.end('exit\n');
-        reject(new Error(`remote_command_timeout: ${stderr || stdout || 'no output'}`));
+        reject(new Error(`remote_command_timeout: ${outputTail(stderr || stdout || 'no output')}`));
       }, 45_000);
 
       const finish = (ok: boolean, payload: { stdout: string; stderr: string } | Error) => {
@@ -100,11 +156,16 @@ async function execRemote(command: string): Promise<{ stdout: string; stderr: st
 
       stream.on('data', (chunk: Buffer | string) => {
         stdout += chunk.toString();
+        if (!commandSent && hasShellPrompt(stdout)) {
+          sendCommand();
+          return;
+        }
+
         const m = stdout.match(new RegExp(`${sentinel}:(-?\\d+)`));
         if (m) {
           const code = Number(m[1]);
           if (code === 0) finish(true, { stdout, stderr });
-          else finish(false, new Error(`remote_command_failed(code=${code}): ${stderr || stdout || 'no output'}`));
+          else finish(false, new Error(`remote_command_failed(code=${code}): ${outputTail(stderr || stdout || 'no output')}`));
         }
       });
 
@@ -114,12 +175,9 @@ async function execRemote(command: string): Promise<{ stdout: string; stderr: st
 
       stream.on('close', () => {
         if (!done && !stdout.includes(sentinel)) {
-          finish(false, new Error(`remote_command_failed(no_exit_code): ${stderr || stdout || 'no output'}`));
+          finish(false, new Error(`remote_command_failed(no_exit_code): ${outputTail(stderr || stdout || 'no output')}`));
         }
       });
-
-      stream.write(`${command}\n`);
-      stream.write(`echo ${sentinel}:$?\n`);
     });
   });
 }
@@ -138,12 +196,17 @@ export async function runOnJumpHost(command: string) {
 export function buildPythonCommand(execParam: TaskExecParam, taskId: string) {
   console.log('[jump-host] build python command for task:', taskId);
   for (const [k, v] of Object.entries(execParam)) {
-    console.log(`[jump-host]   --${k} ${String(v)}`);
+    console.log(`[jump-host]   ${k}: ${typeof v === 'object' ? JSON.stringify(v) : String(v)}`);
   }
 
+  const instanceName = instanceNameFromInput(execParam.input);
+  const ctx = { taskId, instanceName };
+  const outputPath = `results/${taskId}.json`;
+  const route7AliasPath = execParam.route7Alias ? renderTemplate(execParam.route7Alias, ctx) : null;
   const args: string[] = ['python', '-m', 'quantum_hackathon.miqp_cli'];
   for (const [k, v] of Object.entries(execParam)) {
     if (k === 'output') continue;
+    if (!MIQP_CLI_PARAM_KEYS.has(k)) continue;
     if (!/^[a-zA-Z][a-zA-Z0-9-]*$/.test(k)) {
       console.log('[jump-host] skip invalid param key:', k);
       continue;
@@ -154,11 +217,56 @@ export function buildPythonCommand(execParam: TaskExecParam, taskId: string) {
     if (v !== true) args.push(String(v));
   }
   args.push('--output');
-  args.push(`results/${taskId}.json`);
+  args.push(outputPath);
 
   const cli = args.map((x) => shEscape(x)).join(' ');
+  const remoteSteps = [
+    cli,
+    route7AliasPath ? `cp ${shEscape(outputPath)} ${shEscape(route7AliasPath)}` : '',
+  ].filter(Boolean);
+
+  const baseline = execParam.baselineStudy;
+  if (baseline?.enabled) {
+    const baselineOutputDir = renderTemplate(baseline['output-dir'], ctx);
+    const route7JsonDir = renderTemplate(baseline['route7-json-dir'], ctx);
+    const baselineInputs = (baseline.inputs?.length ? baseline.inputs : [execParam.input]).map((input) =>
+      renderTemplate(input, { ...ctx, input: execParam.input }),
+    );
+    remoteSteps.push(
+      `mkdir -p ${shEscape(route7JsonDir)}`,
+      `cp ${shEscape(outputPath)} ${shEscape(`${route7JsonDir}/${instanceName}_route7.json`)}`,
+      [
+        'python',
+        'scripts/miqp_baseline_study.py',
+        '--inputs',
+        ...baselineInputs,
+        '--output-dir',
+        baselineOutputDir,
+        '--route7-json-dir',
+        route7JsonDir,
+        '--random-reads',
+        String(baseline['random-reads']),
+        '--sa-reads',
+        String(baseline['sa-reads']),
+        '--sa-sweeps',
+        String(baseline['sa-sweeps']),
+        '--qaoa-block-size',
+        String(baseline['qaoa-block-size']),
+        '--qaoa-shots',
+        String(baseline['qaoa-shots']),
+        '--meta-population',
+        String(baseline['meta-population']),
+        '--meta-iterations',
+        String(baseline['meta-iterations']),
+      ]
+        .map((x) => shEscape(x))
+        .join(' '),
+    );
+  }
+
+  const remoteScript = `cd /root/quantum_hackathon_repro_1bf21b3 && ${remoteSteps.join(' && ')}`;
   return [
     'cd /home/infra',
-    'docker exec -d qiskit bash -lc ' + shEscape(`cd root/quantum_hackathon_repro_1bf21b3 && ${cli}`),
+    'docker exec -d qiskit bash -lc ' + shEscape(remoteScript),
   ].join(' && ');
 }
