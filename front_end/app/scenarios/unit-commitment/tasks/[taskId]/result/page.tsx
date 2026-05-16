@@ -20,6 +20,11 @@ type ApiPayload = {
 };
 
 type ViewData = {
+  overview: {
+    finalObjective: string;
+    binaryNValues: string;
+    continuousPValues: string;
+  };
   task: {
     name: string;
     datasetName: string;
@@ -73,7 +78,8 @@ function parseViewData(task: Task, stored: StoredResult): ViewData {
   const parsed = asObj(JSON.parse(stored.rawJson));
   const instance = asObj(parsed.instance);
   const referenceSolution = asObj(parsed.reference_solution);
-  const route = asObj(parsed.miqp_aware_route7);
+  const routeKey = Object.keys(parsed).find((k) => k.startsWith('miqp_aware_route'));
+  const route = asObj(routeKey ? parsed[routeKey] : undefined);
   const routeSolution = asObj(route.solution);
   const diagnostics = asObj(routeSolution.diagnostics);
   const constraintReport = asObj(diagnostics.constraint_report);
@@ -109,7 +115,11 @@ function parseViewData(task: Task, stored: StoredResult): ViewData {
         iter: String(i + 1),
         objective: fmt(asNum(p.objective)),
         bestBound: fmt(bestSolution),
-        gapPct: gapPct === null ? '-' : fmt(gapPct, 4),
+        gapPct: (() => {
+          const obj = asNum(p.objective);
+          if (obj === null || bestSolution === null || Math.abs(bestSolution) < 1e-12) return '-';
+          return fmt((Math.abs(obj - bestSolution) / Math.abs(bestSolution)) * 100, 4);
+        })(),
         feasible: Boolean(p.feasible),
         usedQubits: String(task.maxQubits),
         elapsedSec: runtimeMs === null ? '-' : fmt(runtimeMs / 1000, 3),
@@ -121,7 +131,10 @@ function parseViewData(task: Task, stored: StoredResult): ViewData {
       iter: '1',
       objective: fmt(bestObjective),
       bestBound: fmt(bestSolution),
-      gapPct: gapPct === null ? '-' : fmt(gapPct, 4),
+      gapPct:
+        bestObjective === null || bestSolution === null || Math.abs(bestSolution) < 1e-12
+          ? '-'
+          : fmt((Math.abs(bestObjective - bestSolution) / Math.abs(bestSolution)) * 100, 4),
       feasible,
       usedQubits: String(task.maxQubits),
       elapsedSec: runtimeMs === null ? '-' : fmt(runtimeMs / 1000, 3),
@@ -130,6 +143,11 @@ function parseViewData(task: Task, stored: StoredResult): ViewData {
   }
 
   return {
+    overview: {
+      finalObjective: fmt(asNum(routeSolution.objective)),
+      binaryNValues: `[${x.map((v) => String(v)).join(', ')}]`,
+      continuousPValues: `[${y.map((v) => String(v)).join(', ')}]`,
+    },
     task: {
       name: task.name,
       datasetName: task.datasetName || String(instance.name ?? '-'),
@@ -277,6 +295,15 @@ export default function TaskResultPage() {
                   <span className="muted"> {v.label}</span>
                 </span>
               ))}
+            </div>
+          </section>
+
+          <section className={styles.section}>
+            <div className={styles.sectionTitle}>结果概述</div>
+            <div className={styles.infoGrid}>
+              <div className={styles.infoCard}><span className={styles.infoLabel}>最终结果</span><span className={styles.infoSep}>：</span><span className={styles.infoValue}>{view.overview.finalObjective}</span></div>
+              <div className={styles.infoCard}><span className={styles.infoLabel}>二元变量 n</span><span className={styles.infoSep}>：</span><span className={styles.infoValue}>{view.overview.binaryNValues}</span></div>
+              <div className={styles.infoCard}><span className={styles.infoLabel}>连续变量 p</span><span className={styles.infoSep}>：</span><span className={styles.infoValue}>{view.overview.continuousPValues}</span></div>
             </div>
           </section>
 

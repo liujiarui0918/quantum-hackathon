@@ -33,6 +33,7 @@ export default function TasksPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [executeOpen, setExecuteOpen] = useState(false);
   const [executeTask, setExecuteTask] = useState<Task | null>(null);
+  const [executing, setExecuting] = useState(false);
   const [terminateOpen, setTerminateOpen] = useState(false);
   const [terminateTask, setTerminateTask] = useState<Task | null>(null);
 
@@ -77,14 +78,6 @@ export default function TasksPage() {
     void refresh(queryFilters);
   }, []);
 
-  useEffect(() => {
-    if (!tasks.some((t) => t.status === 'running')) return;
-    const id = window.setInterval(() => {
-      void refresh(queryFilters);
-    }, 2000);
-    return () => window.clearInterval(id);
-  }, [tasks, refresh, queryFilters]);
-
   const closeCreate = () => {
     setCreateOpen(false);
     setDraft(emptyTaskPayload());
@@ -113,12 +106,17 @@ export default function TasksPage() {
   };
 
   const confirmExecute = async () => {
-    if (!executeTask) return;
-    await api.post(`/api/tasks/${executeTask.id}/execute`);
-    setExecuteOpen(false);
-    setExecuteTask(null);
-    await refresh(queryFilters);
-    showToast('任务开始执行');
+    if (!executeTask || executing) return;
+    setExecuting(true);
+    try {
+      await api.post(`/api/tasks/${executeTask.id}/execute`, undefined, { timeout: 60_000 });
+      setExecuteOpen(false);
+      setExecuteTask(null);
+      await refresh(queryFilters);
+      showToast('开始执行');
+    } finally {
+      setExecuting(false);
+    }
   };
 
   const confirmTerminate = async () => {
@@ -307,7 +305,19 @@ export default function TasksPage() {
           <tbody>
             {tasks.map((t, idx) => (
               <tr key={t.id}>
-                <td>{idx + 1}</td>
+                <td>
+                  <button
+                    type="button"
+                    className="btn btnGhost"
+                    style={{ padding: '4px 8px', minWidth: 0 }}
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(t.id);
+                      showToast('已经该任务id复制到剪贴板');
+                    }}
+                  >
+                    {idx + 1}
+                  </button>
+                </td>
                 <td>{t.name}</td>
                 <td>{t.datasetName}</td>
                 <td>{t.n}</td>
@@ -344,7 +354,7 @@ export default function TasksPage() {
       ) : null}
 
       {executeOpen && executeTask ? (
-        <Modal title="确认执行" onClose={() => setExecuteOpen(false)} footer={<><button type="button" className="btn btnGhost" onClick={() => setExecuteOpen(false)}>取消</button><button type="button" className="btn" onClick={() => void confirmExecute()}>确定</button></>}>
+        <Modal title="确认执行" onClose={() => { if (!executing) setExecuteOpen(false); }} footer={<><button type="button" className="btn btnGhost" disabled={executing} onClick={() => setExecuteOpen(false)}>取消</button><button type="button" className="btn" disabled={executing} onClick={() => void confirmExecute()}>{executing ? '启动中....' : '确定'}</button></>}>
           <div className="muted" style={{ lineHeight: 1.7, marginBottom: 12 }}>确定要执行“{executeTask.name}”任务吗？</div>
           <TaskFieldsForm value={pickPayload(executeTask)} onChange={() => undefined} readOnly />
         </Modal>

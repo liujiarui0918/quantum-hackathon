@@ -112,6 +112,8 @@
 .infoValue {
   color: rgba(232, 247, 255, 0.95);
   font-variant-numeric: tabular-nums;
+  white-space: normal;
+  word-break: break-all;
 }
 
 .infoReason {

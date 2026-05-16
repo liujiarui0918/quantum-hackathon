@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { connectMongo } from '@/lib/mongodb';
 import { MiqpTask } from '@/lib/models/miqp-task';
 import type { Task, TaskPayload, TaskStatus } from './types';
+import { getDatasetExecParams } from './dataset-exec-config';
 
 function nowIso() {
   return new Date().toISOString();
@@ -24,6 +25,7 @@ function normalizeTaskDoc(doc: Record<string, unknown>): Task {
     maxIterations: Number(doc.maxIterations ?? 12),
     timeLimitSec: Number(doc.timeLimitSec ?? 120),
     penaltyLambda: Number(doc.penaltyLambda ?? 8),
+    execParam: (doc.execParam ?? null) as Task['execParam'],
     result: (doc.result ?? null) as Task['result'],
   };
 }
@@ -63,11 +65,13 @@ export async function getTask(id: string): Promise<Task | null> {
 export async function createTask(payload: TaskPayload): Promise<Task> {
   await ensureMongo();
   const createdAt = nowIso();
+  const execParam = getDatasetExecParams(payload.datasetName);
   const task: Task = {
     id: randomUUID(),
     ...payload,
     status: 'pending',
     createdAt,
+    execParam,
     result: null,
   };
   await MiqpTask.create({ ...task, updatedAt: createdAt });
@@ -78,7 +82,8 @@ export async function updateTask(id: string, payload: TaskPayload): Promise<Task
   await ensureMongo();
   const cur = (await MiqpTask.findOne({ id }).lean().exec()) as Record<string, unknown> | null;
   if (!cur || cur.status !== 'pending') return null;
-  await MiqpTask.updateOne({ id }, { $set: { ...payload, updatedAt: nowIso() } }).exec();
+  const execParam = getDatasetExecParams(payload.datasetName);
+  await MiqpTask.updateOne({ id }, { $set: { ...payload, execParam, updatedAt: nowIso() } }).exec();
   const next = await MiqpTask.findOne({ id }).lean().exec();
   return next ? normalizeTaskDoc(next as Record<string, unknown>) : null;
 }
@@ -89,11 +94,16 @@ export async function deleteTask(id: string): Promise<boolean> {
   return r.deletedCount > 0;
 }
 
-export async function executeTask(id: string): Promise<boolean> {
+export async function prepareExecuteTask(id: string): Promise<{ ok: true; execParam: Task['execParam'] } | { ok: false }> {
   await ensureMongo();
   const cur = (await MiqpTask.findOne({ id }).lean().exec()) as Record<string, unknown> | null;
-  if (!cur || cur.status !== 'pending') return false;
-  const r = await MiqpTask.updateOne({ id }, { $set: { status: 'running', updatedAt: nowIso() } }).exec();
+  if (!cur || cur.status !== 'pending') return { ok: false };
+  return { ok: true, execParam: (cur.execParam ?? null) as Task['execParam'] };
+}
+
+export async function markTaskRunning(id: string): Promise<boolean> {
+  await ensureMongo();
+  const r = await MiqpTask.updateOne({ id, status: 'pending' }, { $set: { status: 'running', updatedAt: nowIso() } }).exec();
   return r.matchedCount > 0;
 }
 

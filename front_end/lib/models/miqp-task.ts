@@ -1,11 +1,13 @@
 import { Schema, model, models } from 'mongoose';
 import type { TaskPayload, TaskStatus } from '@/lib/types';
+import type { DatasetExecParams } from '@/lib/dataset-exec-config';
 
 export interface MiqpTaskDoc extends TaskPayload {
   id: string;
   status: TaskStatus;
   createdAt: string;
   updatedAt: string;
+  execParam?: DatasetExecParams | null;
   result?: unknown;
 }
 
@@ -15,6 +17,7 @@ const MiqpTaskSchema = new Schema<MiqpTaskDoc>(
     status: { type: String, required: true, enum: ['pending', 'running', 'completed'], default: 'pending' },
     createdAt: { type: String, required: true },
     updatedAt: { type: String, required: true },
+    execParam: { type: Schema.Types.Mixed, required: false },
     result: { type: Schema.Types.Mixed, required: false },
 
     name: { type: String, required: true },

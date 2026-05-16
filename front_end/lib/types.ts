@@ -1,3 +1,5 @@
+import type { DatasetExecParams } from './dataset-exec-config';
+
 export type TaskStatus = 'pending' | 'running' | 'completed';
 
 export interface TaskPayload {
@@ -15,10 +17,13 @@ export interface TaskPayload {
   penaltyLambda: number;
 }
 
+export type TaskExecParam = DatasetExecParams;
+
 export interface Task extends TaskPayload {
   id: string;
   status: TaskStatus;
   createdAt: string;
+  execParam?: TaskExecParam | null;
   result?: unknown;
 }
 
