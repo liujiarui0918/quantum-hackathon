@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { createPortal } from 'react-dom';
@@ -361,7 +360,12 @@ export default function TaskResultPage() {
               {(payload.result.runImgList ?? []).map((url, idx) => (
                 <button key={`${url}-${idx}`} type="button" className={styles.imageCard} onClick={() => openPreview('run', idx)}>
                   <div className={styles.thumb} style={{ width: '100%', height: 180 }}>
-                    <Image src={url} alt={`运行信息-${idx + 1}`} width={640} height={360} unoptimized />
+                    <div
+                      className={styles.thumbBg}
+                      role="img"
+                      aria-label={`运行信息-${idx + 1}`}
+                      style={{ backgroundImage: `url(${url})` }}
+                    />
                   </div>
                 </button>
               ))}
@@ -375,7 +379,12 @@ export default function TaskResultPage() {
               {(payload.result.compareImgList ?? []).map((url, idx) => (
                 <button key={`${url}-${idx}`} type="button" className={styles.imageCard} onClick={() => openPreview('compare', idx)}>
                   <div className={styles.thumb} style={{ width: '100%', height: 180 }}>
-                    <Image src={url} alt={`比对信息-${idx + 1}`} width={640} height={360} unoptimized />
+                    <div
+                      className={styles.thumbBg}
+                      role="img"
+                      aria-label={`比对信息-${idx + 1}`}
+                      style={{ backgroundImage: `url(${url})` }}
+                    />
                   </div>
                 </button>
               ))}
@@ -389,7 +398,12 @@ export default function TaskResultPage() {
               <div className={styles.previewPanel} onClick={(e) => e.stopPropagation()}>
                 <button type="button" className={styles.previewClose} onClick={() => setPreviewOpen(false)}>×</button>
                 <div className={styles.previewBody}>
-                  <img src={previewImages[previewIndex]} alt="preview" className={styles.previewImg} />
+                  <div
+                    className={styles.previewImgBg}
+                    role="img"
+                    aria-label="preview"
+                    style={{ backgroundImage: `url(${previewImages[previewIndex]})` }}
+                  />
                 </div>
                 <div className={styles.previewFoot}>
                   <span className="muted">{previewIndex + 1} / {previewImages.length}</span>
