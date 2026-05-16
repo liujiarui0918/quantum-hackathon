@@ -50,7 +50,7 @@ const BASELINE_STUDY_CONFIG: NonNullable<DatasetExecParams['baselineStudy']> = {
 
 const DATASET_EXEC_CONFIG: Record<string, DatasetExecParams> = {
   'miqp_sample_A.npz': {
-    input: '量化优化/量化优化/2026量子计算大赛·混合整数优化问题赛道小规模测试数据/miqp_sample_A.npz',
+    'input': '量化优化/量化优化/2026量子计算大赛·混合整数优化问题赛道小规模测试数据/miqp_sample_A.npz',
     'solution-npz': 'results/miqp_sample_A_solution.npz',
     'exact-binary-limit': 15,
     'max-block-size': 12,
@@ -65,7 +65,7 @@ const DATASET_EXEC_CONFIG: Record<string, DatasetExecParams> = {
     'max-block-size': 20,
     'candidate-limit': 192,
     'max-iterations': 8,
-    seed: 11,
+    'seed': 11,
     'block-pool': true,
     'blocks-per-iteration': 3,
     'candidate-budget-per-block': 64,
@@ -79,6 +79,41 @@ const DATASET_EXEC_CONFIG: Record<string, DatasetExecParams> = {
     'polish-candidate-limit': 128,
     route7Alias: 'results/{instanceName}_route7.json',
     baselineStudy: BASELINE_STUDY_CONFIG,
+  },
+  'miqp_test_1.npz': {
+    input: '量化优化/量化优化/2026量子计算大赛·混合整数优化问题赛道小规模测试数据/miqp_sample_A.npz',
+    'solution-npz': 'results/miqp_sample_A_solution.npz',
+    'exact-binary-limit': 15,
+    'max-block-size': 12,
+    'candidate-limit': 64,
+  },
+  'miqp_test_2.npz': {
+    'input': '量化优化/量化优化/2026量子计算大赛·混合整数优化问题赛道小规模测试数据/miqp_sample_A.npz',
+    'solution-npz': 'results/miqp_sample_A_solution.npz',
+    'exact-binary-limit': 15,
+    'max-block-size': 12,
+    'candidate-limit': 64,
+  },
+  'miqp_test_3.npz': {
+    'input': '量化优化/量化优化/2026量子计算大赛·混合整数优化问题赛道小规模测试数据/miqp_sample_A.npz',
+    'solution-npz': 'results/miqp_sample_A_solution.npz',
+    'exact-binary-limit': 15,
+    'max-block-size': 12,
+    'candidate-limit': 64,
+  },
+  'miqp_test_4.npz': {
+    'input': '量化优化/量化优化/2026量子计算大赛·混合整数优化问题赛道小规模测试数据/miqp_sample_A.npz',
+    'solution-npz': 'results/miqp_sample_A_solution.npz',
+    'exact-binary-limit': 15,
+    'max-block-size': 12,
+    'candidate-limit': 64,
+  },
+  'miqp_test_5.npz': {
+    'input': '量化优化/量化优化/2026量子计算大赛·混合整数优化问题赛道小规模测试数据/miqp_sample_A.npz',
+    'solution-npz': 'results/miqp_sample_A_solution.npz',
+    'exact-binary-limit': 15,
+    'max-block-size': 12,
+    'candidate-limit': 64,
   },
 };
 
