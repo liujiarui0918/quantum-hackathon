@@ -3,10 +3,10 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from itertools import product
-from math import exp
+from math import exp, sqrt
 from pathlib import Path
 from time import perf_counter
-from typing import Iterable, Sequence
+from typing import Iterable, Protocol, Sequence
 
 from quantum_hackathon.modeling.problem import OptimizationProblem
 from quantum_hackathon.modeling.qubo import QuboBuilder, QuboModel
@@ -152,9 +152,88 @@ class VariableFixingPlan:
 
 
 @dataclass(frozen=True)
+class BitProbability:
+    index: int
+    score: float
+    probability_one: float
+
+    @property
+    def confidence(self) -> float:
+        return max(self.probability_one, 1.0 - self.probability_one)
+
+    def as_record(self) -> dict:
+        return {
+            "index": self.index,
+            "score": round(self.score, 6),
+            "probability_one": round(self.probability_one, 6),
+            "confidence": round(self.confidence, 6),
+        }
+
+
+class BitProbabilityModel(Protocol):
+    name: str
+
+    def predict_probabilities(self, graph: QuboGraphFeatures) -> tuple[BitProbability, ...]:
+        raise NotImplementedError
+
+
+@dataclass(frozen=True)
+class WarmStartPrediction:
+    model_name: str
+    bit_probabilities: tuple[BitProbability, ...]
+    threshold_candidate: tuple[int, ...]
+    fixing_plan: VariableFixingPlan
+
+    @property
+    def ranked_bits(self) -> tuple[tuple[int, float], ...]:
+        return tuple((item.index, item.score) for item in self.bit_probabilities)
+
+    def as_record(self) -> dict:
+        return {
+            "model_name": self.model_name,
+            "bit_probabilities": [item.as_record() for item in self.bit_probabilities],
+            "threshold_candidate": list(self.threshold_candidate),
+            "variable_fixing_plan": self.fixing_plan.as_record(),
+        }
+
+
+class WarmStartInferencePipeline:
+    def __init__(self, model: BitProbabilityModel):
+        self.model = model
+
+    def predict(
+        self,
+        graph: QuboGraphFeatures,
+        *,
+        confidence_threshold: float = 0.85,
+    ) -> WarmStartPrediction:
+        probabilities = tuple(
+            sorted(
+                self.model.predict_probabilities(graph),
+                key=lambda item: (-item.score, item.index),
+            )
+        )
+        probability_by_index = {item.index: item.probability_one for item in probabilities}
+        threshold_candidate = tuple(
+            1 if probability_by_index.get(index, 0.0) >= 0.5 else 0
+            for index in range(len(graph.nodes))
+        )
+        return WarmStartPrediction(
+            model_name=getattr(self.model, "name", self.model.__class__.__name__),
+            bit_probabilities=probabilities,
+            threshold_candidate=threshold_candidate,
+            fixing_plan=_fixing_plan_from_probabilities(
+                probabilities,
+                confidence_threshold=confidence_threshold,
+            ),
+        )
+
+
+@dataclass(frozen=True)
 class LinearWarmStartPolicy:
     weights: tuple[float, ...] = (-1.0, 0.0, -0.25, -0.05, -0.10, 0.10)
     threshold: float = 0.0
+    name: str = "linear_warm_start"
 
     def __post_init__(self) -> None:
         if len(self.weights) != len(FEATURE_NAMES):
@@ -167,8 +246,17 @@ class LinearWarmStartPolicy:
         scored = [(node.index, self.score(node)) for node in graph.nodes]
         return tuple(sorted(scored, key=lambda item: (-item[1], item[0])))
 
+    def predict_probabilities(self, graph: QuboGraphFeatures) -> tuple[BitProbability, ...]:
+        return tuple(
+            BitProbability(index=index, score=score, probability_one=_sigmoid(score))
+            for index, score in self.rank(graph)
+        )
+
     def probabilities(self, graph: QuboGraphFeatures) -> tuple[tuple[int, float, float], ...]:
-        return tuple((index, score, _sigmoid(score)) for index, score in self.rank(graph))
+        return tuple(
+            (item.index, item.score, item.probability_one)
+            for item in self.predict_probabilities(graph)
+        )
 
     def threshold_candidate(self, graph: QuboGraphFeatures) -> tuple[int, ...]:
         scores = {index: score for index, score in self.rank(graph)}
@@ -183,22 +271,8 @@ class LinearWarmStartPolicy:
         if not 0.5 < confidence_threshold <= 1.0:
             raise ValueError("confidence_threshold must be in (0.5, 1.0]")
 
-        fixed: list[tuple[int, int, float]] = []
-        free: list[int] = []
-        ranked_bits = self.probabilities(graph)
-        for index, _score, probability in ranked_bits:
-            confidence = max(probability, 1.0 - probability)
-            if confidence >= confidence_threshold:
-                fixed.append((index, 1 if probability >= 0.5 else 0, round(confidence, 6)))
-            else:
-                free.append(index)
-        return VariableFixingPlan(
-            fixed_bits=tuple(fixed),
-            free_bits=tuple(free),
-            ranked_bits=tuple(
-                (index, round(score, 6), round(probability, 6))
-                for index, score, probability in ranked_bits
-            ),
+        return _fixing_plan_from_probabilities(
+            self.predict_probabilities(graph),
             confidence_threshold=confidence_threshold,
         )
 
@@ -226,6 +300,103 @@ class LearningGuidedTrainingExample:
 
     def to_json_line(self) -> str:
         return json.dumps(self.as_record(), ensure_ascii=False, sort_keys=True)
+
+
+@dataclass(frozen=True)
+class LogisticWarmStartModel:
+    feature_names: tuple[str, ...] = FEATURE_NAMES
+    weights: tuple[float, ...] = (0.0,) * len(FEATURE_NAMES)
+    bias: float = 0.0
+    feature_means: tuple[float, ...] = (0.0,) * len(FEATURE_NAMES)
+    feature_scales: tuple[float, ...] = (1.0,) * len(FEATURE_NAMES)
+    name: str = "logistic_warm_start"
+
+    def __post_init__(self) -> None:
+        width = len(self.feature_names)
+        if len(self.weights) != width:
+            raise ValueError("weights must match feature_names")
+        if len(self.feature_means) != width or len(self.feature_scales) != width:
+            raise ValueError("feature normalization vectors must match feature_names")
+
+    @classmethod
+    def fit_training_records(
+        cls,
+        records: Sequence[dict | LearningGuidedTrainingExample],
+        *,
+        epochs: int = 60,
+        learning_rate: float = 0.05,
+        l2: float = 0.0005,
+    ) -> "LogisticWarmStartModel":
+        rows = _labeled_feature_rows(records)
+        if not rows:
+            raise ValueError("cannot fit warm-start model without labeled graph records")
+        width = len(rows[0][0])
+        means = tuple(sum(features[index] for features, _label in rows) / len(rows) for index in range(width))
+        scales = []
+        for index, mean in enumerate(means):
+            variance = sum((features[index] - mean) ** 2 for features, _label in rows) / len(rows)
+            scale = sqrt(variance)
+            scales.append(scale if scale > 1e-12 else 1.0)
+
+        weights = [0.0] * width
+        bias = 0.0
+        for _epoch in range(max(1, epochs)):
+            for features, label in rows:
+                normalized = [
+                    (features[index] - means[index]) / scales[index]
+                    for index in range(width)
+                ]
+                score = bias + sum(weight * value for weight, value in zip(weights, normalized))
+                probability = _sigmoid(score)
+                error = probability - label
+                bias -= learning_rate * error
+                for index, value in enumerate(normalized):
+                    weights[index] -= learning_rate * (error * value + l2 * weights[index])
+
+        return cls(
+            weights=tuple(round(weight, 12) for weight in weights),
+            bias=round(bias, 12),
+            feature_means=tuple(round(value, 12) for value in means),
+            feature_scales=tuple(round(value, 12) for value in scales),
+        )
+
+    def predict_probabilities(self, graph: QuboGraphFeatures) -> tuple[BitProbability, ...]:
+        predictions = []
+        for node in graph.nodes:
+            normalized = [
+                (value - mean) / scale
+                for value, mean, scale in zip(node.values, self.feature_means, self.feature_scales)
+            ]
+            score = self.bias + sum(weight * value for weight, value in zip(self.weights, normalized))
+            predictions.append(
+                BitProbability(
+                    index=node.index,
+                    score=score,
+                    probability_one=_sigmoid(score),
+                )
+            )
+        return tuple(sorted(predictions, key=lambda item: (-item.score, item.index)))
+
+    def as_record(self) -> dict:
+        return {
+            "model_type": self.name,
+            "feature_names": list(self.feature_names),
+            "weights": list(self.weights),
+            "bias": self.bias,
+            "feature_means": list(self.feature_means),
+            "feature_scales": list(self.feature_scales),
+        }
+
+    @classmethod
+    def from_record(cls, record: dict) -> "LogisticWarmStartModel":
+        return cls(
+            feature_names=tuple(record.get("feature_names", FEATURE_NAMES)),
+            weights=tuple(float(value) for value in record["weights"]),
+            bias=float(record.get("bias", 0.0)),
+            feature_means=tuple(float(value) for value in record.get("feature_means", (0.0,) * len(FEATURE_NAMES))),
+            feature_scales=tuple(float(value) for value in record.get("feature_scales", (1.0,) * len(FEATURE_NAMES))),
+            name=str(record.get("model_type", "logistic_warm_start")),
+        )
 
 
 class LearningGuidedDatasetBuilder:
@@ -297,20 +468,22 @@ class LearningGuidedSamplerBackend(SamplerBackend):
         self,
         *,
         extractor: QuboGraphFeatureExtractor | None = None,
-        policy: LinearWarmStartPolicy | None = None,
+        policy: BitProbabilityModel | None = None,
     ):
         self.extractor = extractor or QuboGraphFeatureExtractor()
         self.policy = policy or LinearWarmStartPolicy()
+        self.pipeline = WarmStartInferencePipeline(self.policy)
 
     def sample(self, model: QuboModel, config: SamplerConfig | None = None) -> RawSampleSet:
         started = perf_counter()
         resolved = config or SamplerConfig()
         graph = self.extractor.extract(model)
-        ranked = self.policy.rank(graph)
-        fixing_plan = self.policy.suggest_fixing(graph)
+        prediction = self.pipeline.predict(graph)
+        ranked = prediction.ranked_bits
+        fixing_plan = prediction.fixing_plan
         policy_candidates = _policy_candidates(
             ranked,
-            self.policy.threshold_candidate(graph),
+            prediction.threshold_candidate,
             num_variables=model.num_variables,
             max_candidates=max(1, resolved.num_reads),
             fixing_plan=fixing_plan,
@@ -333,10 +506,11 @@ class LearningGuidedSamplerBackend(SamplerBackend):
             backend_metadata={
                 "feature_names": list(graph.feature_names),
                 "num_edges": len(graph.edges),
-                "policy": "linear_warm_start",
+                "policy": prediction.model_name,
                 "candidate_count": len(candidates),
                 "logical_candidate_count": len(logical_candidates),
                 "ml_role": "warm_start_variable_ranking",
+                "warm_start_prediction": prediction.as_record(),
                 "variable_fixing_plan": fixing_plan.as_record(),
             },
         )
@@ -516,6 +690,48 @@ def _candidate_from_fixed_bits(num_variables: int, fixed_assignment: dict[int, i
     for index, value in fixed_assignment.items():
         bitstring[index] = value
     return tuple(bitstring)
+
+
+def _fixing_plan_from_probabilities(
+    probabilities: Iterable[BitProbability],
+    *,
+    confidence_threshold: float,
+) -> VariableFixingPlan:
+    if not 0.5 < confidence_threshold <= 1.0:
+        raise ValueError("confidence_threshold must be in (0.5, 1.0]")
+    fixed: list[tuple[int, int, float]] = []
+    free: list[int] = []
+    ranked_bits: list[tuple[int, float, float]] = []
+    for item in probabilities:
+        confidence = item.confidence
+        if confidence >= confidence_threshold:
+            fixed.append((item.index, 1 if item.probability_one >= 0.5 else 0, round(confidence, 6)))
+        else:
+            free.append(item.index)
+        ranked_bits.append((item.index, round(item.score, 6), round(item.probability_one, 6)))
+    return VariableFixingPlan(
+        fixed_bits=tuple(fixed),
+        free_bits=tuple(free),
+        ranked_bits=tuple(ranked_bits),
+        confidence_threshold=confidence_threshold,
+    )
+
+
+def _labeled_feature_rows(
+    records: Sequence[dict | LearningGuidedTrainingExample],
+) -> list[tuple[tuple[float, ...], int]]:
+    rows: list[tuple[tuple[float, ...], int]] = []
+    for record in records:
+        payload = record.as_record() if isinstance(record, LearningGuidedTrainingExample) else record
+        graph = payload.get("qubo_graph", payload)
+        labels = graph.get("labels")
+        nodes = graph.get("node_features", [])
+        if labels is None or len(labels) != len(nodes):
+            continue
+        for node, label in zip(nodes, labels):
+            features = tuple(float(value) for value in node["features"])
+            rows.append((features, int(label)))
+    return rows
 
 
 def _sigmoid(value: float) -> float:

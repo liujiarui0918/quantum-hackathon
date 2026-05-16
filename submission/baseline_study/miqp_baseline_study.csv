@@ -1,0 +1,25 @@
+instance,method,family,status,feasible,objective,official,gap_percent,runtime_ms,peak_kib,candidates_evaluated,binary_variables,search_bits,qaoa_qubits,qaoa_layers,qaoa_shots,qaoa_rzz_per_layer,notes
+miqp_sample_A,zero_x_lp,classical_baseline,feasible,True,7.275696,106.094636,93.142258,1464.753,24213.333,1,15,0,0,0,0,0,x=0
+miqp_sample_A,marginal_greedy_lp,classical_baseline,feasible,True,97.720843,106.094636,7.892758,23.054,23.816,15,15,15,0,0,0,0,adds positive marginal bits under B constraints
+miqp_sample_A,structural_warm_start_lp,learning_guided_baseline,feasible,True,97.720843,106.094636,7.892758,16.17,23.637,1,15,15,0,0,0,0,MIQP structural warm start
+miqp_sample_A,random_repair_lp,classical_stochastic,feasible,True,105.090577,106.094636,0.946381,251.976,50.33,96,15,15,0,0,0,0,96 random repaired candidates
+miqp_sample_A,exact_binary_lp,classical_exact,feasible,True,106.094636,106.094636,0.0,3903.816,224.78,1152,15,15,0,0,0,0,enumerates all binary x passing B constraints
+miqp_sample_A,global_binary_sa_lp,classical_annealing,feasible,True,105.090577,106.094636,0.946381,3488.38,99.216,9,15,16,0,0,0,0,simulated_annealing; qubo_bits=16; feasible_sample_ratio=1.000
+miqp_sample_A,global_learning_guided_lp,learning_guided_baseline,feasible,True,98.547928,106.094636,7.113185,49.132,77.132,3,15,16,0,0,0,0,learning_guided; qubo_bits=16; feasible_sample_ratio=1.000
+miqp_sample_A,block_sa_lp,classical_annealing,feasible,True,105.090577,106.094636,0.946381,1313.409,62.715,8,15,11,0,0,0,0,"simulated_annealing on selected block [1, 2, 3, 4, 5, 9, 10, 12, 13, 14]; feasible_sample_ratio=1.000"
+miqp_sample_A,block_learning_guided_lp,learning_guided_baseline,feasible,True,98.547928,106.094636,7.113185,31.689,55.395,3,15,11,0,0,0,0,"learning_guided on selected block [1, 2, 3, 4, 5, 9, 10, 12, 13, 14]; feasible_sample_ratio=1.000"
+miqp_sample_A,block_qaoa_lp,quantum_model,feasible,True,105.090577,106.094636,0.946381,5139.254,277.578,137,15,10,10,1,160,45,"objective-only QAOA on block [1, 2, 3, 4, 5, 9, 10, 12, 13, 14]; candidates repaired against B constraints"
+miqp_sample_A,miqp_aware_route7,proposed_hybrid_quantum,feasible,True,106.094636,106.094636,0.0,,,1152,15,12,0,0,0,0,loaded existing result; runtime not measured in this study; exact_binary_plus_continuous_lp; best_seed=7
+miqp_sample_A,official_reference,reference,reference,True,106.094636,106.094636,0.0,0.0,0.0,0,15,0,0,0,0,0,provided in sample data; not used as a solver
+miqp_sample_B,zero_x_lp,classical_baseline,feasible,True,1.30021,610.266639,99.786944,5.613,40.725,1,80,0,0,0,0,0,x=0
+miqp_sample_B,marginal_greedy_lp,classical_baseline,feasible,True,544.475466,610.266639,10.780726,201.731,52.591,80,80,80,0,0,0,0,adds positive marginal bits under B constraints
+miqp_sample_B,structural_warm_start_lp,learning_guided_baseline,feasible,True,472.797422,610.266639,22.526091,342.43,53.203,1,80,80,0,0,0,0,MIQP structural warm start
+miqp_sample_B,random_repair_lp,classical_stochastic,feasible,True,381.824684,610.266639,37.433138,478.107,59.655,96,80,80,0,0,0,0,96 random repaired candidates
+miqp_sample_B,exact_binary_lp,classical_exact,skipped,False,,610.266639,,0.0,0.0,0,80,80,0,0,0,0,skipped because n=80 would require 2^n enumeration
+miqp_sample_B,global_binary_sa_lp,classical_annealing,skipped,False,,610.266639,,0.0,0.0,0,80,80,0,0,0,0,skipped: n=80 exceeds global binary cap 32
+miqp_sample_B,global_learning_guided_lp,learning_guided_baseline,skipped,False,,610.266639,,0.0,0.0,0,80,80,0,0,0,0,skipped: n=80 exceeds global binary cap 32
+miqp_sample_B,block_sa_lp,classical_annealing,feasible,True,492.115433,610.266639,19.360587,8650.732,190.344,44,80,26,0,0,0,0,"simulated_annealing on selected block [35, 37, 41, 45, 51, 52, 63, 71, 73, 79]; feasible_sample_ratio=0.125"
+miqp_sample_B,block_learning_guided_lp,learning_guided_baseline,feasible,True,454.884678,610.266639,25.461323,186.476,140.558,6,80,26,0,0,0,0,"learning_guided on selected block [35, 37, 41, 45, 51, 52, 63, 71, 73, 79]; feasible_sample_ratio=0.875"
+miqp_sample_B,block_qaoa_lp,quantum_model,feasible,True,488.070768,610.266639,20.023357,5491.286,287.991,146,80,10,10,1,160,45,"objective-only QAOA on block [35, 37, 41, 45, 51, 52, 63, 71, 73, 79]; candidates repaired against B constraints"
+miqp_sample_B,miqp_aware_route7,proposed_hybrid_quantum,feasible,True,577.780995,610.266639,5.323189,,,344,80,20,0,0,0,0,loaded existing result; runtime not measured in this study; miqp_aware_block_heuristic; best_seed=11
+miqp_sample_B,official_reference,reference,reference,True,610.266639,610.266639,0.0,0.0,0.0,0,80,0,0,0,0,0,provided in sample data; not used as a solver

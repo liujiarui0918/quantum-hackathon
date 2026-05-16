@@ -1,0 +1,422 @@
+\documentclass[UTF8,a4paper,11pt]{ctexart}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{longtable}
+\usepackage{xcolor}
+\usepackage{enumitem}
+
+\geometry{left=2.2cm,right=2.2cm,top=2.2cm,bottom=2.4cm}
+\hypersetup{hidelinks}
+\setlist[itemize]{leftmargin=1.8em,itemsep=0.2em,topsep=0.2em}
+\setlist[enumerate]{leftmargin=1.8em,itemsep=0.2em,topsep=0.2em}
+
+\definecolor{RouteBlue}{HTML}{173B5F}
+\definecolor{RouteGreen}{HTML}{1E7A5F}
+\definecolor{RouteOrange}{HTML}{B95F19}
+\graphicspath{{submission/baseline_study/figures/}}
+
+\title{\textbf{混合整数优化问题赛道求解说明}}
+\author{队伍：平步青云}
+\date{2026年5月16日}
+
+\begin{document}
+
+\maketitle
+
+\begin{center}
+\small
+提交文件：\texttt{混合整数优化问题赛道-平步青云-求解说明.pdf}\\
+源码包：\texttt{混合整数优化问题赛道-平步青云-源代码.zip}
+\end{center}
+
+\tableofcontents
+\newpage
+
+\section{摘要}
+
+本赛道给定一类带连续变量的混合整数二次规划问题。根据样例数据与官方最优值核验，实际目标为\textbf{最大化}
+\[
+\max_{x,y}\quad x^\top Qx+c^\top x+h^\top y,
+\]
+其中二进制变量 $x\in\{0,1\}^n$ 承担组合决策，连续变量 $y\ge 0$ 通过线性约束与 $x$ 耦合。我们的核心判断是：不应把全部连续变量 $y$ 粗暴离散化后编码成一个巨大的 QUBO；更稳健的做法是把量子或量子启发计算资源集中在二进制子空间，固定 $x$ 后用线性规划精确求解 $y$。
+
+因此本方案采用 MIQP-aware 的路线 7：以二进制变量块为量子/混合搜索表面，用结构化打分选择高价值 block，生成 warm-start 和变量固定计划，再对每个候选 $x$ 求解连续 LP 子问题，并从对偶信息产生 Benders-style cut advice。小规模样例 A 使用二进制精确枚举加连续 LP，得到目标值 $106.094636$，与官方最优值完全一致；中规模样例 B 使用 block heuristic，得到可行目标值 $577.780995$，相对官方最优 $610.266639$ 的差距约 $5.32\%$。当前结果已经具备可复现性和清晰优化方向，后续提升重点应放在 block 选择、warm-start 模型和 cut loop 强化，而不是简单扩大通用 QUBO。
+
+\paragraph{研究贡献概览}
+为了使本文更接近正式研究论文而非单一工程说明，我们将贡献明确为四点：
+
+\begin{enumerate}
+  \item 提出一种面向 MIQP 结构的量子-经典混合分解范式，将组合搜索限制在二进制 block 上，将连续变量保留为精确 LP 子问题。
+  \item 设计可解释的 block selector、warm-start probability、variable fixing plan 与 cut advisor，使路线 7 不再只是通用 QUBO warm-start，而是理解 $Q,A,G,B$ 结构的 MIQP coordinator。
+  \item 构造包含经典、随机、退火、学习引导、block-QAOA 与 proposed route7 的横向实验矩阵，并从最优性 gap、候选评估数、搜索 bit 数、QAOA qubit 数和运行时间多个维度展示差异。
+  \item 输出可复现实验代码、JSON/CSV/Markdown 结果和论文插图，使评审能够直接复查每个数字的来源。
+\end{enumerate}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.98\linewidth]{miqp_route7_workflow.png}
+  \caption{MIQP-aware route 7 工作流。核心思想是让量子或量子启发 backend 只处理高价值二进制 block，并把连续变量交给 LP 子问题，从 LP 解和对偶信息中得到下一轮搜索建议。}
+\end{figure}
+
+\section{问题分析}
+
+官方数据文件为 \texttt{.npz} 格式，包含维度 $n,p,m_1,m_2$ 以及矩阵 $Q,c,h,A,G,b,B,b'$。问题形式为：
+\[
+\begin{aligned}
+\max_{x,y}\quad & x^\top Qx+c^\top x+h^\top y\\
+\text{s.t.}\quad & Ax+Gy\le b,\\
+& Bx\le b',\\
+& x\in\{0,1\}^n,\quad y\ge 0.
+\end{aligned}
+\]
+
+该问题有三个关键结构。
+
+\begin{itemize}
+  \item $x$ 是组合爆炸来源。样例 B 已经有 $n=80$ 个二进制变量，直接全枚举需要 $2^{80}$ 个候选。
+  \item $y$ 是连续变量，但固定 $x$ 后，关于 $y$ 的问题退化为线性规划：
+  \[
+  \max_y\ h^\top y,\quad \text{s.t.}\ Gy\le b-Ax,\ y\ge 0.
+  \]
+  这部分应由经典 LP 求解器处理，既精确又高效。
+  \item 样例中的 $Q,A,G$ 较稠密，说明变量之间耦合强。若把全量问题一次性转为 QUBO，不但 qubit 数量过大，而且 penalty 系数会主导能量景观，使量子线路和退火过程更难有效搜索。
+\end{itemize}
+
+从提交策略看，我们希望同时满足两点：第一，代码必须在给定容器中稳定运行；第二，算法必须体现量子优化思想。于是本方案把量子层设计成\textbf{可插拔 block backend}：每次只把一个二进制 block 转成 QUBO/Ising，并保持 block 规模默认不超过 20，硬上限不超过 30。这使得 QAOA、量子退火、模拟退火和学习引导采样都能接到同一接口。
+
+\section{建模过程}
+
+\subsection{固定连续变量的错误方向}
+
+一种直接思路是将 $y$ 离散化，例如用若干二进制位表示每个连续变量，再把所有约束转成 penalty 项。这条路在小玩具问题上可行，但在本赛题上不合适：
+
+\begin{itemize}
+  \item 每个 $y_j$ 若用 $r$ 位编码，会额外引入 $pr$ 个二进制变量；样例 B 中 $p=20$，隐含数据还可能更大。
+  \item 连续变量精度与 QUBO 尺寸互相冲突，位数少会损失可行域精度，位数多会超过可模拟 qubit 范围。
+  \item $Ax+Gy\le b$ 的 penalty 权重很难统一调节，过小会得到不可行解，过大会淹没原目标函数。
+\end{itemize}
+
+\subsection{二进制 block 子问题}
+
+设当前 incumbent 为 $\bar{x}$，选择二进制变量集合 $S$ 作为 block，$z=x_S$。固定 $S$ 外部变量后，block 上的二次目标可写为：
+\[
+F_S(z)=z^\top Q_{SS}z+\ell_S^\top z+\text{const},
+\]
+其中 $\ell_S$ 吸收了 $c$、$Q$ 的对角项和 block 外变量对 block 内变量的边际贡献。为了把最大化问题交给 QUBO 最小化 backend，构造能量：
+\[
+E_S(z)=-F_S(z)+\lambda_B\sum_r \left[\left(B_Sz+B_{\bar{S}}\bar{x}_{\bar{S}}-b'_r\right)_+\right]^2.
+\]
+
+在代码中，\texttt{build\_block\_binary\_problem()} 负责从 MIQP 实例抽取 block 子问题，并复用仓库已有 \texttt{QuboBuilder} 生成 QUBO。这样可以直接接入已有的 QUBO、Ising、QAOA 和采样器模块。
+
+\subsection{连续子问题与 cut}
+
+对每个候选 $x$，求解连续 LP：
+\[
+\phi(x)=\max_y h^\top y,\quad Gy\le b-Ax,\quad y\ge 0.
+\]
+若可行，则总目标为：
+\[
+f(x)=x^\top Qx+c^\top x+\phi(x).
+\]
+LP 的对偶可以写为：
+\[
+\min_\pi (b-Ax)^\top \pi,\quad G^\top \pi\ge h,\quad \pi\ge 0.
+\]
+当得到对偶乘子 $\pi$ 时，可以形成对连续贡献的上界型建议：
+\[
+\theta \le b^\top\pi-(A^\top\pi)^\top x.
+\]
+这不是把 cut 直接硬塞进当前 block 的唯一方式，而是作为下一轮 block 选择和候选评估的指导信号。这样路线 7 从单纯 warm-start 扩展为 MIQP-aware coordinator。
+
+\section{量子算法设计}
+
+\subsection{总体思路}
+
+算法主循环如下：
+
+\begin{verbatim}
+Input: MIQP instance (Q,c,h,A,G,b,B,b')
+Initialize incumbent x by structural warm start
+Repeat for max_iterations:
+    1. Score binary variables by objective, Q coupling, A/G coupling and B constraints
+    2. Select a dense and high-impact binary block S
+    3. Build bit probabilities P(x_i=1) and a variable fixing plan
+    4. Convert block S into QUBO, then optionally into Ising Hamiltonian
+    5. Generate block candidate assignments by exact / annealing / learning-guided backend
+    6. Repair candidates against Bx <= b'
+    7. For each candidate x, solve continuous LP over y
+    8. Keep best feasible (x,y), extract cut advice from LP duals
+    9. Move to a new block using frontier and cut diagnostics
+Output: best feasible solution, objective, block trace, warm-start and cut report
+\end{verbatim}
+
+\subsection{Block selector}
+
+变量打分综合四类特征：
+
+\[
+\text{score}_i=0.30s_i^{obj}+0.35s_i^{couple}+0.20s_i^{mixed}+0.15s_i^{binary}.
+\]
+
+\begin{itemize}
+  \item $s_i^{obj}$：$c_i$ 与 $Q_{ii}$ 的边际贡献。
+  \item $s_i^{couple}$：$Q$ 中与其他变量的绝对耦合质量。
+  \item $s_i^{mixed}$：变量在 $A$ 中对连续约束的参与程度。
+  \item $s_i^{binary}$：变量在 $B$ 中对纯二进制约束的参与程度。
+\end{itemize}
+
+选出最高分 seed 后，算法贪心加入与当前 block 耦合最强的邻居。这样每次量子/退火 backend 处理的是一个局部强耦合子图，而不是稀释在全局大图里。
+
+\subsection{Warm-start 与变量固定}
+
+warm-start advisor 根据当前 incumbent 计算边际收益：
+\[
+m=c+\operatorname{diag}(Q)+2Q\bar{x},
+\]
+再结合混合约束释放量和二进制约束压力，得到每个 bit 的概率 $P(x_i=1)$。高置信 bit 可被固定，低置信 bit 留给 block backend 搜索。当前提交版本使用可解释线性策略，接口已经预留给后续 GNN 或强化学习模型：
+
+\[
+\text{QUBO graph}\rightarrow \text{bit probability}\rightarrow
+\text{variable ranking}\rightarrow \text{fixing plan}.
+\]
+
+\subsection{候选生成 backend}
+
+当前路线 7 支持三类 backend 思想：
+
+\begin{itemize}
+  \item 小规模时精确枚举，用作 correctness baseline。
+  \item 中规模时模拟退火和 learning-guided sampler 生成候选。
+  \item block QUBO 可转 Ising，进入 QAOA 或量子退火 backend。由于提交环境不保证真实 QPU，本提交默认使用可复现 backend，但保留 QAOA/Aer GPU 接口。
+\end{itemize}
+
+\section{量子线路实现}
+
+对任意 block QUBO：
+\[
+E(z)=\sum_i q_i z_i+\sum_{i<j} q_{ij}z_iz_j+\text{const},
+\]
+使用 $z_i=(1-Z_i)/2$ 转换为 Ising Hamiltonian：
+\[
+H_C=\alpha+\sum_i h_iZ_i+\sum_{i<j}J_{ij}Z_iZ_j.
+\]
+
+标准 QAOA ansatz 为：
+\[
+|\psi(\gamma,\beta)\rangle=
+\prod_{\ell=1}^{p}e^{-i\beta_\ell\sum_i X_i}
+e^{-i\gamma_\ell H_C}
+|+\rangle^{\otimes |S|}.
+\]
+
+线路层级如下：
+
+\begin{enumerate}
+  \item 对 block 内每个 qubit 施加 Hadamard，制备 $|+\rangle$。
+  \item 对每个 $Z_i$ 项施加 $RZ$ 相位旋转。
+  \item 对每个 $Z_iZ_j$ 项施加 $RZZ$ 双比特相位旋转。
+  \item 对每个 qubit 施加 $RX$ mixer。
+  \item 重复 $p$ 层后测量所有 qubit，得到 block bitstring。
+\end{enumerate}
+
+仓库中对应实现位于：
+
+\begin{itemize}
+  \item \texttt{src/quantum\_hackathon/solvers/qaoa/hamiltonian.py}：QUBO 到 Ising Hamiltonian。
+  \item \texttt{src/quantum\_hackathon/solvers/qaoa/runner.py}：QAOA 参数搜索与采样主流程。
+  \item \texttt{src/quantum\_hackathon/solvers/qaoa/backends.py}：本地 statevector、shot simulator 与 Qiskit Aer backend。
+  \item \texttt{src/quantum\_hackathon/miqp/route7.py}：MIQP block 选择、warm-start、cut advisor 与候选循环。
+\end{itemize}
+
+资源控制原则是：全局 MIQP 可以很大，但每次送入 QAOA/退火层的 block 默认不超过 20 个 qubit，硬限制为 30 个。这一点比单纯追求“大 QUBO”更适合近中期量子硬件和模拟器。
+
+\section{实验结果与展示}
+
+本地与远端 \texttt{qiskit} 容器均已通过完整测试。为了避免“只展示最好算法”的选择偏差，我们额外建立了横向 baseline study。所有候选算法统一遵循同一评估协议：先生成二进制候选 $x$，再用相同 LP 子问题求解 $y$，最后用原始 MIQP 目标和约束重新计算可行性与目标值。这样可以公平比较不同搜索策略，而不是比较不同后处理器。
+
+当前提交目录中保留了两个样例的 route7 JSON 和 NPZ 输出：
+
+\begin{itemize}
+  \item \texttt{submission/results/miqp\_sample\_A\_route7.json}
+  \item \texttt{submission/results/miqp\_sample\_A\_solution.npz}
+  \item \texttt{submission/results/miqp\_sample\_B\_route7.json}
+  \item \texttt{submission/results/miqp\_sample\_B\_solution.npz}
+\end{itemize}
+
+运行命令如下：
+
+\begin{verbatim}
+python -m quantum_hackathon.miqp_cli --input ".../miqp_sample_A.npz" \
+  --output submission/results/miqp_sample_A_route7.json \
+  --solution-npz submission/results/miqp_sample_A_solution.npz \
+  --exact-binary-limit 15 --max-block-size 12 --candidate-limit 64
+
+python -m quantum_hackathon.miqp_cli --input ".../miqp_sample_B.npz" \
+  --output submission/results/miqp_sample_B_route7.json \
+  --solution-npz submission/results/miqp_sample_B_solution.npz \
+  --exact-binary-limit 16 --max-block-size 20 --candidate-limit 128 \
+  --max-iterations 5 --seeds 3,7,11,19
+\end{verbatim}
+
+\begin{center}
+\begin{tabular}{lrrrrrrl}
+\toprule
+样例 & $n$ & $p$ & $m_1$ & $m_2$ & 本方案目标值 & 官方最优 & 状态 \\
+\midrule
+A & 15 & 5 & 5 & 1 & 106.094636 & 106.094636 & 可行且最优 \\
+B & 80 & 20 & 20 & 4 & 577.780995 & 610.266639 & 可行，gap 5.32\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+样例 A 因为二进制变量数为 15，路线自动进入 exact-binary-plus-continuous-LP 模式。样例 B 进入 MIQP-aware block heuristic 模式，最佳 seed 为 11，候选评估数为 344。B 的结果没有达到官方最优，但已经给出稳定可行解和完整诊断，包括 block history、warm-start probability、continuous LP 解、cut advice 与约束报告。
+
+源码包中还提供结果汇总脚本：
+
+\begin{verbatim}
+python scripts/render_miqp_results.py submission/results/miqp_sample_A_route7.json \
+  submission/results/miqp_sample_B_route7.json \
+  --output submission/results/miqp_route7_summary.md
+\end{verbatim}
+
+\subsection{横向 baseline study}
+
+新增实验脚本为 \texttt{scripts/miqp\_baseline\_study.py}，输出目录为 \texttt{submission/baseline\_study/}。该脚本生成 JSON、CSV、Markdown 和插图。对比方法包括：
+
+\begin{itemize}
+  \item \textbf{zero\_x\_lp}：全零二进制向量，只求连续 LP。
+  \item \textbf{marginal\_greedy\_lp}：按二进制边际收益贪心加入变量，并检查 $Bx\le b'$。
+  \item \textbf{structural\_warm\_start\_lp}：使用 MIQP 结构 warm-start 生成单个候选。
+  \item \textbf{random\_repair\_lp}：随机二进制候选，经 $B$ 约束修复后求 LP。
+  \item \textbf{exact\_binary\_lp}：小规模二进制精确枚举；样例 B 因 $2^{80}$ 不可承受而跳过。
+  \item \textbf{global/block SA}：模拟退火候选生成。
+  \item \textbf{global/block learning-guided}：学习引导排序和局部改进候选生成。
+  \item \textbf{block\_qaoa\_lp}：目标函数 block QAOA 生成候选，再用经典 repair 和 LP 验证。
+  \item \textbf{miqp\_aware\_route7}：本文提出的主算法。
+\end{itemize}
+
+\begin{center}
+\small
+\begin{tabular}{llrrrrr}
+\toprule
+样例 & 方法 & 目标值 & Gap(\%) & 可行 & 搜索 bit / qubit & 候选评估 \\
+\midrule
+A & random\_repair\_lp & 105.090577 & 0.946 & 是 & 15 / 0 & 96 \\
+A & block\_qaoa\_lp & 105.090577 & 0.946 & 是 & 10 / 10 & 137 \\
+A & exact\_binary\_lp & 106.094636 & 0.000 & 是 & 15 / 0 & 1152 \\
+A & \textbf{miqp\_aware\_route7} & \textbf{106.094636} & \textbf{0.000} & 是 & 12 / 0 & 1152 \\
+\midrule
+B & marginal\_greedy\_lp & 544.475466 & 10.781 & 是 & 80 / 0 & 80 \\
+B & block\_sa\_lp & 492.115433 & 19.361 & 是 & 26 / 0 & 44 \\
+B & block\_qaoa\_lp & 488.070768 & 20.023 & 是 & 10 / 10 & 146 \\
+B & \textbf{miqp\_aware\_route7} & \textbf{577.780995} & \textbf{5.323} & 是 & 20 / 0 & 344 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+这里的 gap 按最大化问题计算为 $(\text{official}-\text{objective})/|\text{official}|\times100\%$。route7 行读取已有最强结果，因此横向 study 的运行时间图不把它作为计时点，避免把缓存结果误画成零耗时；但目标值、gap、搜索 bit 和候选评估数仍然纳入比较。
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.96\linewidth]{cross_instance_gap.png}
+  \caption{跨样例最优性 gap 对比。样例 A 中 proposed route7 与精确枚举同为 $0\%$ gap；样例 B 中 proposed route7 的 gap 为 $5.323\%$，显著优于贪心、随机修复、block SA、learning-guided 与 block-QAOA 单步候选。}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.92\linewidth]{miqp_sample_B_objective_by_method.png}
+  \caption{样例 B 不同方法的目标值对比。虚线为官方最优值。该图展示了单纯 warm-start、随机修复和单 block 后端不足以接近最优，必须引入 MIQP-aware 的多候选、多 block 与连续 cut reasoning。}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.90\linewidth]{miqp_sample_B_gap_runtime_frontier.png}
+  \caption{样例 B 的质量-时间前沿。该图只展示本次 study 中实际计时的基线；route7 读取缓存结果，因此不放入时间前沿，避免误导。}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.90\linewidth]{miqp_sample_B_resource_profile.png}
+  \caption{样例 B 资源画像。全局精确枚举和全局二进制 QUBO 在 $n=80$ 时被标注跳过；block-QAOA 控制在 10 qubit，而 proposed route7 使用 20-bit block 和 344 次候选评估获得更强目标值。}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.48\linewidth]{miqp_sample_B_block_coupling_heatmap.png}
+  \hfill
+  \includegraphics[width=0.48\linewidth]{miqp_sample_B_warm_start_probabilities.png}
+  \caption{样例 B 的结构可视化。左图为 selector 选中 block 的 $Q$ 耦合热力图，右图为 warm-start advisor 输出的 $P(x_i=1)$。这两张图说明路线 7 的决策不是黑箱随机搜索，而是由二次耦合和约束结构驱动。}
+\end{figure}
+
+\section{创新点描述}
+
+\begin{enumerate}
+  \item \textbf{MIQP-aware 而非通用 QUBO 堆叠。} 方案识别出 $y$ 是连续 LP 子问题，不将其离散化为额外 qubit，避免规模和精度双重损失。
+  \item \textbf{把量子资源用于高价值二进制 block。} block selector 根据 $Q,A,B$ 的结构选择强耦合变量子图，让 QAOA/退火层处理最值得搜索的部分。
+  \item \textbf{warm-start、ranking、fixing plan 可插拔。} 当前线性策略可解释，后续可以直接替换为 GNN/RL 模型，输入为 QUBO graph 特征，输出为 bit probability。
+  \item \textbf{LP 对偶 cut advice。} 固定 $x$ 后不只求一个 $y$，还提取连续子问题的对偶信息，为下一轮 block 搜索提供结构信号。
+  \item \textbf{工程可复现。} 所有结果通过 CLI 输出 JSON/NPZ，测试覆盖 loader、block selector、warm-start、cut advisor 与七条路线集成。
+\end{enumerate}
+
+\section{算法对比分析}
+
+\begin{center}
+\small
+\begin{tabular}{p{3.0cm}p{4.3cm}p{4.3cm}p{2.5cm}}
+\toprule
+方法 & 优点 & 缺点 & 本赛题适配性 \\
+\midrule
+全量精确枚举 & 可证明最优 & $2^n$ 爆炸，仅适合很小规模 & 只适合样例 A 级别 \\
+全量 QUBO/QAOA & 表达统一，量子形式直接 & 连续变量离散化导致 qubit 和 penalty 激增 & 不适合中大规模 MIQP \\
+通用模拟退火 & 实现简单，可扩展 & 不理解连续 LP 和 MIQP 结构 & 可做 baseline \\
+\textbf{本方案路线 7} & 保留 MIQP 结构，量子层只处理 block，结果可解释 & B 样例仍有 5.32\% gap，需要更强策略 & 当前最合理主线 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+从当前实验看，本方案已经能稳定复现小规模最优并在中规模生成可行高质量解。更重要的是，横向比较揭示了一个清晰结论：\textbf{量子模型本身不是自动优势来源，结构感知的分解方式才是优势来源。} 单次 block-QAOA 在样例 B 上能以 10 qubit 产生可行候选，但 gap 约 $20.02\%$；MIQP-aware route7 通过多候选、多 block、LP 子问题和 cut advice 将 gap 降至 $5.32\%$。这说明当前量子优化最合理的角色不是替代整个优化器，而是作为高价值二进制子空间的候选生成器。
+
+\paragraph{准确性}
+样例 A 上，route7 与 exact binary LP 均达到官方最优；样例 B 上，route7 在已测试启发式方法中目标值最高。这个结果支持我们对问题结构的判断：连续变量不应离散化，二进制变量也不应全量塞入单次 QAOA。
+
+\paragraph{资源占用}
+全局精确枚举在 $n=80$ 时不可运行；全局 QUBO/退火代理也被资源上限跳过。block-QAOA 使用 10 qubit 形成量子线路，route7 的主搜索 block 使用 20 bit，均在近端可控范围内。不同的是 route7 会把 block 结果放回完整 MIQP 中进行 LP 评估和 cut 诊断，因此目标质量更高。
+
+\paragraph{速度}
+本 study 对 baseline 方法做了 wall-clock 计时；route7 的最强结果来自前序复现实验并在本 study 中读取缓存，因此未把它画入质量-时间前沿。正式参赛时建议固定硬件和参数后重新生成完整 runtime profile，包括 route7 end-to-end wall-clock、LP 调用次数、QAOA shots 和 GPU/CPU backend 信息。
+
+\paragraph{局限性}
+当前版本仍然是比赛提交级研究原型，而不是最终理论完备算法。主要局限包括：B 样例仍有 $5.32\%$ gap；cut advice 目前更多用于诊断，尚未完全闭环进入下一轮 block 打分；block selector 是结构启发式而非训练模型；block-QAOA 使用 objective-only circuit 后接经典 repair，尚未实现完整约束保持 mixer。以上局限同时也是后续提升空间。
+
+下一步最值得投入的不是扩大 QAOA 层数或盲目增加 qubit，而是：
+
+\begin{itemize}
+  \item 训练 block selector，使其更接近最优变量子集。
+  \item 用历史候选和 exact/annealing 标签训练 bit probability 模型。
+  \item 把 cut advice 反馈进下一轮 block 打分，而不是只作为报告诊断。
+  \item 对 B 类规模做 seed portfolio、multi-block destroy/repair 和局部分支搜索。
+\end{itemize}
+
+\section{总结}
+
+本提交版本给出了一个面向官方 MIQP 结构的量子-经典混合求解框架：二进制变量由 block QUBO/QAOA/annealing backend 搜索，连续变量由 LP 精确求解，二者通过 warm-start、repair 和 cut advice 闭环。与只报告单一最强算法不同，本文补充了经典、随机、退火、学习引导和 block-QAOA 等基线，并生成了目标值、gap、资源和结构图。结果显示，样例 A 已达到官方最优；样例 B 在当前启发式集合中由 MIQP-aware route7 取得最高可行目标值，gap 为 $5.32\%$。
+
+\paragraph{可复现材料}
+提交包包含：
+
+\begin{itemize}
+  \item \texttt{scripts/miqp\_baseline\_study.py}：横向基线与作图。
+  \item \texttt{submission/baseline\_study/miqp\_baseline\_study.csv}：所有 baseline 数值。
+  \item \texttt{submission/baseline\_study/figures/}：论文插图。
+  \item \texttt{submission/results/}：route7 样例 JSON/NPZ 输出。
+\end{itemize}
+
+若继续优化，建议优先把今晚准备的 graph-to-probability 管线真正训练起来，并将路线 7 的 block selector 从启发式升级为 MIQP-aware learned selector。这样四张 64GB 沐曦 GPU 可以用于离线生成与训练策略模型，而不是消耗在不可控的大规模 statevector 模拟上。以最高标准看，下一版论文应增加更多隐藏/模拟实例、置信区间、消融实验和真实硬件或 Aer GPU profile；当前版本已经把研究叙事、可视化证据和可复现对比的骨架搭好了。
+
+\end{document}

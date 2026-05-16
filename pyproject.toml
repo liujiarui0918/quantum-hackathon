@@ -8,10 +8,16 @@ version = "0.1.0"
 description = "QUBO, constraint, annealing, QAOA, hybrid, and learning-guided optimization MVP for the quantum hackathon track."
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "matplotlib>=3.7",
+]
 
 [project.scripts]
 quantum-metax-demo = "quantum_hackathon.metax_demo:main"
+quantum-build-pretraining-dataset = "quantum_hackathon.pretraining_cli:main"
+quantum-solve-miqp = "quantum_hackathon.miqp_cli:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]

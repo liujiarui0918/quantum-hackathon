@@ -1,3 +1,6 @@
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
 from quantum_hackathon import (
     LearningGuidedDatasetBuilder,
     LearningGuidedSamplerBackend,
@@ -40,16 +43,17 @@ def test_linear_policy_exports_variable_fixing_plan():
     assert plan.as_record()["ranked_bits"][0]["index"] in range(model.num_variables)
 
 
-def test_dataset_builder_writes_labeled_jsonl(tmp_path):
-    target = tmp_path / "learning_guided.jsonl"
+def test_dataset_builder_writes_labeled_jsonl():
+    with TemporaryDirectory(dir=Path.cwd()) as temp_dir:
+        target = Path(temp_dir) / "learning_guided.jsonl"
 
-    examples = LearningGuidedDatasetBuilder().write_jsonl([exactly_one_selection()], target)
+        examples = LearningGuidedDatasetBuilder().write_jsonl([exactly_one_selection()], target)
 
-    assert len(examples) == 1
-    assert examples[0].label_source == "exact"
-    assert examples[0].record["labels"] == [1, 0, 0]
-    text = target.read_text(encoding="utf-8")
-    assert '"qubo_graph"' in text
+        assert len(examples) == 1
+        assert examples[0].label_source == "exact"
+        assert examples[0].record["labels"] == [1, 0, 0]
+        text = target.read_text(encoding="utf-8")
+        assert '"qubo_graph"' in text
 
 
 def test_learning_guided_sampler_uses_policy_candidates_and_local_improvement():
