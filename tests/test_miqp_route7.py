@@ -7,6 +7,7 @@ import pytest
 
 from quantum_hackathon.miqp import (
     MiqpAwareRoute7Solver,
+    MiqpLearnedBlockScorer,
     MiqpBlockScoreWeights,
     MiqpBlockSelector,
     MiqpCutAdvisor,
@@ -139,3 +140,67 @@ def test_miqp_route7_solver_portfolio_runs_on_tiny_instance():
 
     assert result.solution.feasible
     assert result.diagnostics["block_history"][0]["solver_portfolio"]
+
+
+def test_miqp_route7pp_block_pool_records_trace_and_cache_hits():
+    instance = load_miqp_npz(SAMPLE_DIR / "miqp_sample_A.npz")
+
+    result = MiqpAwareRoute7Solver(
+        block_selector=MiqpBlockSelector(max_block_size=8),
+        exact_binary_limit=0,
+        candidate_limit=24,
+        max_iterations=1,
+        seed=5,
+        qaoa_max_qubits=0,
+        block_pool=True,
+        blocks_per_iteration=2,
+        candidate_budget_per_block=12,
+        max_lp_evals=20,
+        learned_block_scorer=MiqpLearnedBlockScorer(),
+    ).solve(instance)
+
+    history = result.diagnostics["block_history"]
+    assert result.solution.feasible
+    assert history[0]["block_pool_enabled"] is True
+    assert len(history[0]["block_pool"]) >= 1
+    assert history[0]["total_lp_calls"] <= 20
+    assert history[0]["total_lp_cache_hits"] >= 1
+    assert "score_features" in history[0]["block_pool"][0]
+
+
+def test_miqp_cli_writes_route7pp_trace_jsonl():
+    with TemporaryDirectory(dir=Path.cwd()) as temp_dir:
+        root = Path(temp_dir)
+        output = root / "result.json"
+        trace = root / "trace.jsonl"
+        exit_code = miqp_main(
+            [
+                "--input",
+                str(SAMPLE_DIR / "miqp_sample_A.npz"),
+                "--output",
+                str(output),
+                "--exact-binary-limit",
+                "0",
+                "--candidate-limit",
+                "20",
+                "--max-iterations",
+                "1",
+                "--block-pool",
+                "--blocks-per-iteration",
+                "2",
+                "--candidate-budget-per-block",
+                "10",
+                "--max-lp-evals",
+                "16",
+                "--qaoa-max-qubits",
+                "0",
+                "--trace-jsonl",
+                str(trace),
+            ]
+        )
+
+        assert exit_code == 0
+        rows = [json.loads(line) for line in trace.read_text(encoding="utf-8").splitlines()]
+        assert rows
+        assert rows[0]["block_pool_enabled"] is True
+        assert "block_pool" in rows[0]

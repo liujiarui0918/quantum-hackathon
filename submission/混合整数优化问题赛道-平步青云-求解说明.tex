@@ -201,6 +201,19 @@ Output: best feasible solution, objective, block trace, warm-start and cut repor
   \caption{block selector 权重与聚类策略消融。该图用于回答权重是否主观、聚类是否更优的问题：现有两个样例上，均衡权重在样例 B 的短预算搜索中最好，但聚类策略没有稳定占优。}
 \end{figure}
 
+\subsection{Route7++：赛前自动赛马增强}
+
+在最终测试数据发布前，我们进一步把路线 7 扩展为 route7++。它不是替换原有算法，而是在原有 MIQP-aware 框架上增加可控预算下的 block pool 与自动赛马：
+
+\begin{itemize}
+  \item 每轮同时生成 default-greedy、balanced-greedy、Q-heavy、constraint-heavy、affinity-cluster、cut-guided 和 destroy-repair 多个 block，再按结构分数、cut 系数、incumbent 边际收益和历史 improvement 排序。
+  \item 候选生成除 exact / learning-guided / SA / QAOA-compatible backend 外，增加 1-swap、2-swap、multi-block destroy/repair 和局部分支枚举。
+  \item 对完整 $x$ bitstring 建立 LP cache，重复候选不再重复求解连续子问题；新增 \texttt{max\_lp\_evals}、\texttt{time\_limit\_sec}、\texttt{blocks\_per\_iteration} 等预算参数。
+  \item 新增 block trace JSONL，记录每个 block 的特征、solver portfolio、候选数、LP 调用数、best improvement 和 cut 信息，可用于训练 learned block scorer。
+\end{itemize}
+
+对应脚本包括 \texttt{scripts/miqp\_trace\_blocks.py}、\texttt{scripts/miqp\_synthetic\_suite.py}、\texttt{scripts/miqp\_train\_block\_model.py} 和 \texttt{scripts/miqp\_auto\_sota.py}。其中 auto SOTA 会对每个真实实例跑多套配置，并只按最终可行目标值选择最强结果。低预算 smoke test 中，样例 B 在 \texttt{max\_lp\_evals=180} 时，旧 route7 safe 目标值约 $520.84$，route7++ balanced/cluster 约 $560.09$，说明 block pool 在受限预算下显著提高搜索效率。
+
 \subsection{Warm-start 与变量固定}
 
 warm-start advisor 根据当前 incumbent 计算边际收益：

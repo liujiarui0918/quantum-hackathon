@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import itertools
+import json
 import math
 import random
 from dataclasses import dataclass, field
+from pathlib import Path
+from time import perf_counter
 from typing import Any, Iterable
 
 import numpy as np
@@ -174,6 +177,107 @@ class MiqpBlockScoreWeights:
             "mixed_constraint": round(self.mixed_constraint, 6),
             "binary_constraint": round(self.binary_constraint, 6),
         }
+
+
+BLOCK_SCORE_FEATURE_NAMES = (
+    "block_score",
+    "block_size",
+    "q_density",
+    "q_abs_sum",
+    "mixed_participation",
+    "binary_participation",
+    "incumbent_ones",
+    "marginal_abs_sum",
+    "cut_abs_sum",
+    "history_mean_improvement",
+)
+
+
+@dataclass(frozen=True)
+class MiqpLearnedBlockScorer:
+    feature_names: tuple[str, ...] = BLOCK_SCORE_FEATURE_NAMES
+    weights: tuple[float, ...] = (0.0,) * len(BLOCK_SCORE_FEATURE_NAMES)
+    bias: float = 0.0
+    feature_means: tuple[float, ...] = (0.0,) * len(BLOCK_SCORE_FEATURE_NAMES)
+    feature_scales: tuple[float, ...] = (1.0,) * len(BLOCK_SCORE_FEATURE_NAMES)
+    name: str = "linear_block_scorer"
+
+    def score(self, features: dict[str, float]) -> float:
+        total = self.bias
+        for index, name in enumerate(self.feature_names):
+            value = float(features.get(name, 0.0))
+            mean = self.feature_means[index] if index < len(self.feature_means) else 0.0
+            scale = self.feature_scales[index] if index < len(self.feature_scales) else 1.0
+            if abs(scale) <= 1e-12:
+                scale = 1.0
+            total += self.weights[index] * ((value - mean) / scale)
+        return float(total)
+
+    def as_record(self) -> dict[str, Any]:
+        return {
+            "model_type": self.name,
+            "feature_names": list(self.feature_names),
+            "weights": list(self.weights),
+            "bias": self.bias,
+            "feature_means": list(self.feature_means),
+            "feature_scales": list(self.feature_scales),
+        }
+
+    @classmethod
+    def from_record(cls, record: dict[str, Any]) -> "MiqpLearnedBlockScorer":
+        names = tuple(str(name) for name in record.get("feature_names", BLOCK_SCORE_FEATURE_NAMES))
+        weights = tuple(float(value) for value in record.get("weights", (0.0,) * len(names)))
+        return cls(
+            feature_names=names,
+            weights=weights,
+            bias=float(record.get("bias", 0.0)),
+            feature_means=tuple(float(value) for value in record.get("feature_means", (0.0,) * len(names))),
+            feature_scales=tuple(float(value) for value in record.get("feature_scales", (1.0,) * len(names))),
+            name=str(record.get("model_type", "linear_block_scorer")),
+        )
+
+    @classmethod
+    def from_path(cls, path: str | Path) -> "MiqpLearnedBlockScorer":
+        return cls.from_record(json.loads(Path(path).read_text(encoding="utf-8")))
+
+
+@dataclass
+class _CachedEvaluation:
+    continuous: ContinuousSubproblemResult
+    solution: MiqpSolution
+
+
+class _LpEvaluationCache:
+    def __init__(self) -> None:
+        self._cache: dict[tuple[int, ...], _CachedEvaluation] = {}
+        self.hits = 0
+        self.misses = 0
+
+    def evaluate(
+        self,
+        instance: "MiqpInstance",
+        advisor: "MiqpCutAdvisor",
+        x: np.ndarray,
+    ) -> tuple[MiqpSolution, ContinuousSubproblemResult, bool]:
+        key = tuple(int(value) for value in x.tolist())
+        cached = self._cache.get(key)
+        if cached is not None:
+            self.hits += 1
+            return cached.solution, cached.continuous, True
+        continuous = advisor.solve_continuous_subproblem(instance, np.asarray(key, dtype=int))
+        solution = _solution_from_continuous(
+            instance,
+            np.asarray(key, dtype=int),
+            continuous,
+            status="feasible" if continuous.feasible else "infeasible",
+        )
+        self._cache[key] = _CachedEvaluation(continuous=continuous, solution=solution)
+        self.misses += 1
+        return solution, continuous, False
+
+    @property
+    def size(self) -> int:
+        return len(self._cache)
 
 
 class MiqpBlockSelector:
@@ -501,6 +605,12 @@ class MiqpAwareRoute7Solver:
         seed: int = 7,
         enable_solver_portfolio: bool = True,
         qaoa_max_qubits: int = 10,
+        block_pool: bool = False,
+        blocks_per_iteration: int = 1,
+        candidate_budget_per_block: int | None = None,
+        max_lp_evals: int | None = None,
+        time_limit_sec: float | None = None,
+        learned_block_scorer: MiqpLearnedBlockScorer | None = None,
     ):
         self.block_selector = block_selector or MiqpBlockSelector()
         self.warm_start_advisor = warm_start_advisor or MiqpWarmStartAdvisor()
@@ -511,6 +621,12 @@ class MiqpAwareRoute7Solver:
         self.seed = seed
         self.enable_solver_portfolio = enable_solver_portfolio
         self.qaoa_max_qubits = max(0, qaoa_max_qubits)
+        self.block_pool = block_pool
+        self.blocks_per_iteration = max(1, blocks_per_iteration)
+        self.candidate_budget_per_block = candidate_budget_per_block
+        self.max_lp_evals = max_lp_evals
+        self.time_limit_sec = time_limit_sec
+        self.learned_block_scorer = learned_block_scorer
 
     def solve(self, instance: MiqpInstance) -> MiqpAwareRoute7Result:
         block = self.block_selector.select(instance)
@@ -538,7 +654,14 @@ class MiqpAwareRoute7Solver:
                 "max_iterations": self.max_iterations,
                 "enable_solver_portfolio": self.enable_solver_portfolio,
                 "qaoa_max_qubits": self.qaoa_max_qubits,
+                "block_pool": self.block_pool,
+                "blocks_per_iteration": self.blocks_per_iteration,
+                "candidate_budget_per_block": self.candidate_budget_per_block,
+                "max_lp_evals": self.max_lp_evals,
+                "time_limit_sec": self.time_limit_sec,
+                "learned_block_model": self.learned_block_scorer.name if self.learned_block_scorer is not None else None,
                 "block_history": block_history,
+                "trace_records": block_history,
             },
         )
 
@@ -589,16 +712,22 @@ class MiqpAwareRoute7Solver:
         block: MiqpBlock,
         warm_start: MiqpWarmStartPlan,
     ) -> tuple[MiqpSolution, ContinuousSubproblemResult, MiqpCutAdvice, int, list[dict[str, Any]]]:
+        started = perf_counter()
         rng = random.Random(self.seed)
         best_solution: MiqpSolution | None = None
         best_continuous: ContinuousSubproblemResult | None = None
         incumbent = np.asarray(warm_start.repaired_assignment, dtype=int)
         evaluated = 0
+        candidate_checks = 0
         visited: set[int] = set()
         history: list[dict[str, Any]] = []
+        cache = _LpEvaluationCache()
         current_block = block
         current_warm_start = warm_start
+        current_cut: MiqpCutAdvice | None = None
         for iteration in range(self.max_iterations):
+            if _time_limit_reached(started, self.time_limit_sec):
+                break
             if iteration > 0:
                 seed_index = _next_seed_index(instance, visited, incumbent)
                 current_block = self.block_selector.select(
@@ -609,69 +738,182 @@ class MiqpAwareRoute7Solver:
                 )
                 current_warm_start = self.warm_start_advisor.plan(instance, block=current_block, incumbent_x=incumbent)
             base = incumbent.copy()
-            block_candidates, portfolio_records = _block_candidates_from_subqubo(
+            blocks = _select_route7pp_block_pool(
                 instance,
-                current_block,
+                self.block_selector,
                 base,
-                self.seed + iteration,
-                self.candidate_limit // 2,
-                enable_solver_portfolio=self.enable_solver_portfolio,
-                qaoa_max_qubits=self.qaoa_max_qubits,
+                current_block,
+                visited=visited,
+                current_cut=current_cut,
+                history=history,
+                learned_block_scorer=self.learned_block_scorer,
+                enabled=self.block_pool,
+                limit=self.blocks_per_iteration,
             )
-            candidates = _dedupe_x_candidates(
-                [
-                    base,
-                    np.zeros(instance.n, dtype=int),
-                    _binary_constraint_repaired_random(instance, rng),
-                    *block_candidates,
-                    *_xy_mixer_proxy_candidates(
-                        instance,
-                        current_block,
-                        base,
-                        current_warm_start.probabilities,
-                        max_candidates=min(32, max(4, self.candidate_limit // 4)),
-                    ),
-                    *_single_flip_candidates(instance, current_block, base, current_warm_start.probabilities),
-                ]
-            )
-            candidates = [
-                repair_binary_constraints(instance, candidate, current_warm_start.probabilities)
-                for candidate in candidates
-            ]
-            candidates = _dedupe_x_candidates(candidates)[: max(1, self.candidate_limit)]
+            iteration_started = perf_counter()
             iteration_best: MiqpSolution | None = None
-            for candidate_x in candidates:
-                continuous = self.cut_advisor.solve_continuous_subproblem(instance, candidate_x)
-                evaluated += 1
-                if not continuous.feasible:
-                    continue
-                solution = _solution_from_continuous(instance, candidate_x, continuous, status="feasible")
-                if solution.feasible and (iteration_best is None or solution.objective > iteration_best.objective):
-                    iteration_best = solution
-                if solution.feasible and (best_solution is None or solution.objective > best_solution.objective):
-                    best_solution = solution
-                    best_continuous = continuous
+            iteration_best_continuous: ContinuousSubproblemResult | None = None
+            iteration_candidate_count = 0
+            iteration_cache_hits = 0
+            iteration_lp_calls = 0
+            block_records = []
+            for block_position, pool_block in enumerate(blocks):
+                if _time_limit_reached(started, self.time_limit_sec):
+                    break
+                pool_warm_start = (
+                    current_warm_start
+                    if pool_block.binary_indices == current_block.binary_indices
+                    else self.warm_start_advisor.plan(instance, block=pool_block, incumbent_x=incumbent)
+                )
+                budget = self.candidate_budget_per_block or max(1, self.candidate_limit // max(1, len(blocks)))
+                block_candidates, portfolio_records = _block_candidates_from_subqubo(
+                    instance,
+                    pool_block,
+                    base,
+                    self.seed + iteration * 100 + block_position,
+                    max(1, budget // 2),
+                    enable_solver_portfolio=self.enable_solver_portfolio,
+                    qaoa_max_qubits=self.qaoa_max_qubits,
+                )
+                candidates = _dedupe_x_candidates(
+                    [
+                        base,
+                        np.zeros(instance.n, dtype=int),
+                        _binary_constraint_repaired_random(instance, rng),
+                        *block_candidates,
+                        *_xy_mixer_proxy_candidates(
+                            instance,
+                            pool_block,
+                            base,
+                            pool_warm_start.probabilities,
+                            max_candidates=min(32, max(4, budget // 4)),
+                        ),
+                        *_two_swap_candidates(
+                            instance,
+                            pool_block,
+                            base,
+                            pool_warm_start.probabilities,
+                            max_candidates=min(32, max(4, budget // 5)),
+                        ),
+                        *_destroy_repair_candidates(
+                            instance,
+                            pool_block,
+                            base,
+                            pool_warm_start.probabilities,
+                            rng,
+                            max_candidates=min(32, max(4, budget // 5)),
+                        ),
+                        *_local_branch_candidates(
+                            instance,
+                            pool_block,
+                            base,
+                            pool_warm_start.probabilities,
+                            max_candidates=min(64, max(8, budget // 3)),
+                        ),
+                        *_single_flip_candidates(instance, pool_block, base, pool_warm_start.probabilities),
+                    ]
+                )
+                candidates = [
+                    repair_binary_constraints(instance, candidate, pool_warm_start.probabilities)
+                    for candidate in candidates
+                ]
+                candidates = _dedupe_x_candidates(candidates)[: max(1, budget)]
+                block_best: MiqpSolution | None = None
+                before_hits = cache.hits
+                before_misses = cache.misses
+                for candidate_x in candidates:
+                    if self.max_lp_evals is not None and evaluated >= self.max_lp_evals:
+                        break
+                    if _time_limit_reached(started, self.time_limit_sec):
+                        break
+                    candidate_checks += 1
+                    solution, continuous, cache_hit = cache.evaluate(instance, self.cut_advisor, candidate_x)
+                    if cache_hit:
+                        iteration_cache_hits += 1
+                    else:
+                        evaluated += 1
+                        iteration_lp_calls += 1
+                    if not continuous.feasible:
+                        continue
+                    if solution.feasible and (block_best is None or solution.objective > block_best.objective):
+                        block_best = solution
+                    if solution.feasible and (iteration_best is None or solution.objective > iteration_best.objective):
+                        iteration_best = solution
+                        iteration_best_continuous = continuous
+                    if solution.feasible and (best_solution is None or solution.objective > best_solution.objective):
+                        best_solution = solution
+                        best_continuous = continuous
+                block_records.append(
+                    _block_trace_record(
+                        instance,
+                        pool_block,
+                        iteration=iteration,
+                        candidates=candidates,
+                        portfolio_records=portfolio_records,
+                        base_objective=instance.binary_objective(base),
+                        block_best=block_best,
+                        lp_calls=cache.misses - before_misses,
+                        cache_hits=cache.hits - before_hits,
+                        learned_score=_block_feature_score(
+                            instance,
+                            pool_block,
+                            base,
+                            current_cut=current_cut,
+                            history=history,
+                            learned_block_scorer=self.learned_block_scorer,
+                        ),
+                    )
+                )
+                iteration_candidate_count += len(candidates)
+                if self.max_lp_evals is not None and evaluated >= self.max_lp_evals:
+                    break
             if iteration_best is not None and iteration_best.objective >= instance.binary_objective(incumbent):
                 incumbent = iteration_best.x.copy()
-            visited.update(current_block.binary_indices)
+                if iteration_best_continuous is not None:
+                    current_cut = self.cut_advisor.advise_cut(instance, iteration_best.x, iteration_best_continuous)
+            for pool_block in blocks:
+                visited.update(pool_block.binary_indices)
+            if blocks:
+                current_block = blocks[0]
             history.append(
                 {
                     "iteration": iteration,
                     "block_indices": list(current_block.binary_indices),
-                    "candidate_count": len(candidates),
-                    "solver_portfolio": portfolio_records,
+                    "candidate_count": iteration_candidate_count,
+                    "solver_portfolio": [
+                        item
+                        for block_record in block_records
+                        for item in block_record["solver_portfolio"]
+                    ],
                     "iteration_best_objective": iteration_best.objective if iteration_best is not None else None,
                     "global_best_objective": best_solution.objective if best_solution is not None else None,
+                    "block_pool_enabled": self.block_pool,
+                    "block_pool": block_records,
+                    "lp_calls": iteration_lp_calls,
+                    "lp_cache_hits": iteration_cache_hits,
+                    "lp_cache_size": cache.size,
+                    "candidate_checks": candidate_checks,
+                    "iteration_runtime_ms": round((perf_counter() - iteration_started) * 1000.0, 3),
+                    "cut_advice": current_cut.as_record() if current_cut is not None else None,
                 }
             )
+            if self.max_lp_evals is not None and evaluated >= self.max_lp_evals:
+                break
         if best_solution is None or best_continuous is None:
             x = incumbent
-            best_continuous = self.cut_advisor.solve_continuous_subproblem(instance, x)
+            best_solution, best_continuous, cache_hit = cache.evaluate(instance, self.cut_advisor, x)
+            if not cache_hit:
+                evaluated += 1
             best_solution = _solution_from_continuous(instance, x, best_continuous, status="heuristic_no_feasible_candidate")
+        final_cut = self.cut_advisor.advise_cut(instance, best_solution.x, best_continuous)
+        for record in history:
+            record["total_lp_calls"] = evaluated
+            record["total_lp_cache_hits"] = cache.hits
+            record["total_candidate_checks"] = candidate_checks
         return (
             best_solution,
             best_continuous,
-            self.cut_advisor.advise_cut(instance, best_solution.x, best_continuous),
+            final_cut,
             evaluated,
             history,
         )
@@ -737,6 +979,214 @@ def repair_binary_constraints(
             drop = min(active, key=lambda index: (confidence.get(index, 0.5), instance.c[index], -index))
             repaired[drop] = 0
     return repaired
+
+
+def _select_route7pp_block_pool(
+    instance: MiqpInstance,
+    base_selector: MiqpBlockSelector,
+    incumbent_x: np.ndarray,
+    current_block: MiqpBlock,
+    *,
+    visited: set[int],
+    current_cut: MiqpCutAdvice | None,
+    history: list[dict[str, Any]],
+    learned_block_scorer: MiqpLearnedBlockScorer | None,
+    enabled: bool,
+    limit: int,
+) -> list[MiqpBlock]:
+    if not enabled:
+        return [current_block]
+    exclude = () if len(visited) + base_selector.max_block_size >= instance.n else visited
+    configs = [
+        ("default_greedy", "greedy", MiqpBlockScoreWeights(0.30, 0.35, 0.20, 0.15), None),
+        ("balanced_greedy", "greedy", MiqpBlockScoreWeights(0.25, 0.25, 0.25, 0.25), None),
+        ("q_heavy_greedy", "greedy", MiqpBlockScoreWeights(0.15, 0.60, 0.15, 0.10), None),
+        ("constraint_heavy_greedy", "greedy", MiqpBlockScoreWeights(0.15, 0.25, 0.35, 0.25), None),
+        ("default_cluster", "affinity_cluster", MiqpBlockScoreWeights(0.30, 0.35, 0.20, 0.15), None),
+        ("q_heavy_cluster", "affinity_cluster", MiqpBlockScoreWeights(0.15, 0.60, 0.15, 0.10), None),
+    ]
+    cut_seed = _cut_guided_seed(instance, current_cut, exclude)
+    destroy_seed = _destroy_repair_seed(instance, incumbent_x, exclude)
+    configs.extend(
+        [
+            ("cut_guided", base_selector.strategy, base_selector.weights, cut_seed),
+            ("destroy_repair", "affinity_cluster", MiqpBlockScoreWeights(0.25, 0.30, 0.20, 0.25), destroy_seed),
+        ]
+    )
+    blocks = [current_block]
+    seen = {current_block.binary_indices}
+    for name, strategy, weights, seed in configs:
+        try:
+            block = MiqpBlockSelector(
+                max_block_size=base_selector.max_block_size,
+                frontier_size=base_selector.frontier_size,
+                strategy=strategy,
+                weights=weights,
+            ).select(
+                instance,
+                incumbent_x=incumbent_x,
+                seed_index=seed,
+                exclude_indices=exclude,
+            )
+        except Exception:
+            continue
+        if block.binary_indices in seen:
+            continue
+        seen.add(block.binary_indices)
+        blocks.append(_with_block_rationale(block, {"pool_strategy": name}))
+    scored = []
+    for block in blocks:
+        learned = _block_feature_score(
+            instance,
+            block,
+            incumbent_x,
+            current_cut=current_cut,
+            history=history,
+            learned_block_scorer=learned_block_scorer,
+        )
+        scored.append((learned["total_score"], block))
+    scored.sort(key=lambda item: (-item[0], item[1].binary_indices))
+    return [block for _score, block in scored[: max(1, limit)]]
+
+
+def _with_block_rationale(block: MiqpBlock, updates: dict[str, Any]) -> MiqpBlock:
+    rationale = dict(block.rationale)
+    rationale.update(updates)
+    return MiqpBlock(
+        binary_indices=block.binary_indices,
+        frontier_indices=block.frontier_indices,
+        seed_index=block.seed_index,
+        score=block.score,
+        variable_scores=block.variable_scores,
+        rationale=rationale,
+    )
+
+
+def _cut_guided_seed(instance: MiqpInstance, current_cut: MiqpCutAdvice | None, exclude: Iterable[int]) -> int | None:
+    if current_cut is None:
+        return None
+    excluded = set(exclude)
+    coefficients = np.asarray(current_cut.x_coefficients, dtype=float)
+    available = [index for index in range(instance.n) if index not in excluded]
+    if not available or coefficients.shape != (instance.n,):
+        return None
+    return max(available, key=lambda index: (abs(float(coefficients[index])), -index))
+
+
+def _destroy_repair_seed(instance: MiqpInstance, incumbent_x: np.ndarray, exclude: Iterable[int]) -> int | None:
+    excluded = set(exclude)
+    marginal = instance.c + np.diag(instance.Q) + 2.0 * (instance.Q @ np.asarray(incumbent_x, dtype=float))
+    available = [index for index in range(instance.n) if index not in excluded]
+    if not available:
+        return None
+    return max(available, key=lambda index: (abs(float(marginal[index])) * (1.2 if incumbent_x[index] else 1.0), -index))
+
+
+def _block_score_features(
+    instance: MiqpInstance,
+    block: MiqpBlock,
+    incumbent_x: np.ndarray,
+    *,
+    current_cut: MiqpCutAdvice | None,
+    history: list[dict[str, Any]],
+) -> dict[str, float]:
+    indices = list(block.binary_indices)
+    if indices:
+        sub_q = instance.Q[np.ix_(indices, indices)]
+        upper = np.triu(np.abs(sub_q) > 1e-12, 1)
+        q_density = float(np.sum(upper) / max(1, len(indices) * (len(indices) - 1) / 2))
+        q_abs_sum = float(np.sum(np.abs(sub_q)))
+        mixed = float(np.sum(np.abs(instance.A[:, indices]))) if instance.m1 else 0.0
+        binary = float(np.sum(np.abs(instance.B[:, indices]))) if instance.m2 else 0.0
+        marginal = instance.c + np.diag(instance.Q) + 2.0 * (instance.Q @ np.asarray(incumbent_x, dtype=float))
+        marginal_abs_sum = float(np.sum(np.abs(marginal[indices])))
+        incumbent_ones = float(np.sum(incumbent_x[indices]))
+    else:
+        q_density = q_abs_sum = mixed = binary = marginal_abs_sum = incumbent_ones = 0.0
+    cut_abs_sum = 0.0
+    if current_cut is not None and len(current_cut.x_coefficients) == instance.n:
+        coeffs = np.asarray(current_cut.x_coefficients, dtype=float)
+        cut_abs_sum = float(np.sum(np.abs(coeffs[indices]))) if indices else 0.0
+    improvements = []
+    for record in history:
+        for block_record in record.get("block_pool", []):
+            improvement = block_record.get("best_improvement")
+            if improvement is not None:
+                improvements.append(float(improvement))
+    history_mean = float(sum(improvements) / len(improvements)) if improvements else 0.0
+    return {
+        "block_score": float(block.score),
+        "block_size": float(len(indices)),
+        "q_density": q_density,
+        "q_abs_sum": q_abs_sum,
+        "mixed_participation": mixed,
+        "binary_participation": binary,
+        "incumbent_ones": incumbent_ones,
+        "marginal_abs_sum": marginal_abs_sum,
+        "cut_abs_sum": cut_abs_sum,
+        "history_mean_improvement": history_mean,
+    }
+
+
+def _block_feature_score(
+    instance: MiqpInstance,
+    block: MiqpBlock,
+    incumbent_x: np.ndarray,
+    *,
+    current_cut: MiqpCutAdvice | None,
+    history: list[dict[str, Any]],
+    learned_block_scorer: MiqpLearnedBlockScorer | None,
+) -> dict[str, float]:
+    features = _block_score_features(instance, block, incumbent_x, current_cut=current_cut, history=history)
+    structural = (
+        0.35 * features["block_score"]
+        + 0.18 * _safe_scale(features["q_abs_sum"])
+        + 0.12 * features["q_density"]
+        + 0.10 * _safe_scale(features["mixed_participation"])
+        + 0.10 * _safe_scale(features["binary_participation"])
+        + 0.10 * _safe_scale(features["marginal_abs_sum"])
+        + 0.05 * _safe_scale(features["cut_abs_sum"])
+    )
+    learned = learned_block_scorer.score(features) if learned_block_scorer is not None else 0.0
+    record = dict(features)
+    record["structural_score"] = float(structural)
+    record["learned_score"] = float(learned)
+    record["total_score"] = float(structural + learned)
+    return record
+
+
+def _block_trace_record(
+    instance: MiqpInstance,
+    block: MiqpBlock,
+    *,
+    iteration: int,
+    candidates: list[np.ndarray],
+    portfolio_records: list[dict[str, Any]],
+    base_objective: float,
+    block_best: MiqpSolution | None,
+    lp_calls: int,
+    cache_hits: int,
+    learned_score: dict[str, float],
+) -> dict[str, Any]:
+    best_objective = block_best.objective if block_best is not None and block_best.feasible else None
+    improvement = None if best_objective is None else float(best_objective - base_objective)
+    return {
+        "instance": instance.name,
+        "iteration": iteration,
+        "block_indices": list(block.binary_indices),
+        "block_size": len(block.binary_indices),
+        "block_strategy": block.rationale.get("pool_strategy", block.rationale.get("strategy")),
+        "block_rationale": block.rationale,
+        "candidate_count": len(candidates),
+        "lp_calls": lp_calls,
+        "lp_cache_hits": cache_hits,
+        "solver_portfolio": portfolio_records,
+        "best_objective": best_objective,
+        "base_objective": float(base_objective),
+        "best_improvement": improvement,
+        "improvement_per_lp_call": None if improvement is None else float(improvement / max(1, lp_calls)),
+        "score_features": learned_score,
+    }
 
 
 def _block_candidates_from_subqubo(
@@ -927,6 +1377,114 @@ def _xy_mixer_proxy_candidates(
     return candidates
 
 
+def _two_swap_candidates(
+    instance: MiqpInstance,
+    block: MiqpBlock,
+    base_x: np.ndarray,
+    probabilities: tuple[BitProbability, ...],
+    *,
+    max_candidates: int,
+) -> list[np.ndarray]:
+    if max_candidates <= 0 or len(block.binary_indices) < 4:
+        return []
+    probability = {item.index: item.probability_one for item in probabilities}
+    active = [index for index in block.binary_indices if base_x[index] == 1]
+    inactive = [index for index in block.binary_indices if base_x[index] == 0]
+    swaps: list[tuple[float, tuple[int, int], tuple[int, int]]] = []
+    for drop_pair in itertools.combinations(active, 2):
+        for add_pair in itertools.combinations(inactive, 2):
+            candidate = base_x.copy()
+            for index in drop_pair:
+                candidate[index] = 0
+            for index in add_pair:
+                candidate[index] = 1
+            if _binary_constraints_feasible(instance, candidate):
+                gain = (
+                    sum(probability.get(index, 0.5) for index in add_pair)
+                    - sum(probability.get(index, 0.5) for index in drop_pair)
+                    + 0.03 * (sum(instance.c[index] for index in add_pair) - sum(instance.c[index] for index in drop_pair))
+                )
+                swaps.append((float(gain), drop_pair, add_pair))
+    candidates = []
+    for _gain, drop_pair, add_pair in sorted(swaps, reverse=True)[:max_candidates]:
+        candidate = base_x.copy()
+        for index in drop_pair:
+            candidate[index] = 0
+        for index in add_pair:
+            candidate[index] = 1
+        candidates.append(candidate)
+    return candidates
+
+
+def _destroy_repair_candidates(
+    instance: MiqpInstance,
+    block: MiqpBlock,
+    base_x: np.ndarray,
+    probabilities: tuple[BitProbability, ...],
+    rng: random.Random,
+    *,
+    max_candidates: int,
+) -> list[np.ndarray]:
+    if max_candidates <= 0 or not block.binary_indices:
+        return []
+    probability = {item.index: item.probability_one for item in probabilities}
+    active = sorted(
+        [index for index in block.binary_indices if base_x[index] == 1],
+        key=lambda index: (probability.get(index, 0.5), instance.c[index], index),
+    )
+    inactive = sorted(
+        [index for index in block.binary_indices if base_x[index] == 0],
+        key=lambda index: (-probability.get(index, 0.5), -instance.c[index], index),
+    )
+    candidates = []
+    max_drop = min(3, max(1, len(active)))
+    for width in range(1, max_drop + 1):
+        candidate = base_x.copy()
+        for index in active[:width]:
+            candidate[index] = 0
+        for index in inactive[:width]:
+            candidate[index] = 1
+        candidates.append(candidate)
+        if len(candidates) >= max_candidates:
+            break
+    while len(candidates) < max_candidates and (active or inactive):
+        candidate = base_x.copy()
+        drop_count = rng.randint(1, min(3, max(1, len(active)))) if active else 0
+        add_count = rng.randint(1, min(3, max(1, len(inactive)))) if inactive else 0
+        for index in rng.sample(active, min(drop_count, len(active))):
+            candidate[index] = 0
+        for index in rng.sample(inactive, min(add_count, len(inactive))):
+            candidate[index] = 1
+        candidates.append(candidate)
+    return candidates
+
+
+def _local_branch_candidates(
+    instance: MiqpInstance,
+    block: MiqpBlock,
+    base_x: np.ndarray,
+    probabilities: tuple[BitProbability, ...],
+    *,
+    max_candidates: int,
+) -> list[np.ndarray]:
+    if max_candidates <= 0 or not block.binary_indices:
+        return []
+    probability = {item.index: item.probability_one for item in probabilities}
+    branch_indices = sorted(
+        block.binary_indices,
+        key=lambda index: (abs(probability.get(index, 0.5) - 0.5), index),
+    )[: min(8, len(block.binary_indices))]
+    candidates = []
+    for bits in itertools.product((0, 1), repeat=len(branch_indices)):
+        candidate = base_x.copy()
+        for index, value in zip(branch_indices, bits):
+            candidate[index] = value
+        candidates.append(candidate)
+        if len(candidates) >= max_candidates:
+            break
+    return candidates
+
+
 def _single_flip_candidates(
     instance: MiqpInstance,
     block: MiqpBlock,
@@ -1055,6 +1613,10 @@ def _binary_constraints_feasible(instance: MiqpInstance, x: np.ndarray) -> bool:
     if not instance.m2:
         return True
     return bool(np.max(instance.B @ np.asarray(x, dtype=float) - instance.b_prime, initial=0.0) <= 1e-8)
+
+
+def _time_limit_reached(started: float, time_limit_sec: float | None) -> bool:
+    return time_limit_sec is not None and (perf_counter() - started) >= time_limit_sec
 
 
 def _normalize(values: np.ndarray) -> np.ndarray:

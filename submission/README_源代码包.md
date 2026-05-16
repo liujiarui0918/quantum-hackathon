@@ -23,7 +23,7 @@ python -m pip install -e ".[dev]"
 python -m pytest -q
 ```
 
-当前本地完整验证结果：`50 passed`。
+当前本地完整验证结果：`54 passed`。
 
 ## 运行官方小规模样例
 
@@ -106,6 +106,43 @@ python scripts/miqp_selector_ablation.py \
   --candidate-limit 48
 ```
 
+明早真实数据到达后的自动赛马入口：
+
+```bash
+python scripts/miqp_auto_sota.py \
+  --inputs "path/to/real_1.npz" "path/to/real_2.npz" \
+  --output-dir results/auto_sota \
+  --seeds 3,7,11,19 \
+  --max-lp-evals 800
+```
+
+route7++ 训练数据与学习辅助模型：
+
+```bash
+python scripts/miqp_trace_blocks.py \
+  --inputs \
+  "量化优化/量化优化/2026量子计算大赛·混合整数优化问题赛道小规模测试数据/miqp_sample_A.npz" \
+  "量化优化/量化优化/2026量子计算大赛·混合整数优化问题赛道小规模测试数据/miqp_sample_B.npz" \
+  --output-jsonl results/route7pp/block_traces.jsonl \
+  --results-dir results/route7pp/runs \
+  --block-pool \
+  --blocks-per-iteration 3 \
+  --candidate-budget-per-block 64
+
+python scripts/miqp_train_block_model.py \
+  --inputs results/route7pp/block_traces.jsonl \
+  --output models/block_selector_model.json
+```
+
+可选生成 MIQP-like synthetic 数据：
+
+```bash
+python scripts/miqp_synthetic_suite.py \
+  --output-dir data/miqp_synthetic \
+  --manifest data/miqp_synthetic/manifest.json \
+  --count 32
+```
+
 ## 关键目录
 
 ```text
@@ -123,6 +160,10 @@ scripts/
   render_miqp_results.py  结果表格渲染脚本
   miqp_baseline_study.py  横向基线、资源画像与论文插图生成脚本
   miqp_selector_ablation.py  block selector 权重与聚类策略消融脚本
+  miqp_trace_blocks.py  route7++ block trace/训练数据采集
+  miqp_synthetic_suite.py  MIQP-like synthetic .npz 生成器
+  miqp_train_block_model.py  fallback block scorer / 可选 PyTorch 模型训练
+  miqp_auto_sota.py  多配置赛马并选择每个实例的最高可行解
 
 tests/
   test_miqp_route7.py     MIQP 路线专用测试
@@ -151,12 +192,14 @@ subject to G y <= b - A x
            y >= 0
 ```
 
-路线 7 的主循环为：
+路线 7 / route7++ 的主循环为：
 
 ```text
-score variables -> select binary block -> warm-start probabilities
--> block QUBO / Ising -> candidate generation -> repair Bx <= b'
--> solve LP for y -> objective and cut advice -> next block
+score variables -> generate block pool -> warm-start probabilities
+-> block QUBO / Ising -> exact / learning-guided / SA / QAOA-compatible candidates
+-> 1-swap / 2-swap / destroy-repair / local branch candidates
+-> repair Bx <= b' -> LP cache -> solve LP for y
+-> objective, cut advice, trace records -> next block
 ```
 
 量子部分体现在 block QUBO 可转为 Ising Hamiltonian，并接入 QAOA/Aer/退火 backend。提交版本默认使用可复现的 exact、simulated annealing、learning-guided 和小 block QAOA-compatible backend；若评审环境提供真实量子 backend 或 Aer GPU，可在同一 block 接口替换执行层。

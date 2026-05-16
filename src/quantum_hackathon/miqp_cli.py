@@ -10,6 +10,7 @@ import numpy as np
 
 from quantum_hackathon.miqp import (
     MiqpAwareRoute7Solver,
+    MiqpLearnedBlockScorer,
     MiqpBlockScoreWeights,
     MiqpBlockSelector,
     MiqpWarmStartAdvisor,
@@ -23,6 +24,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     started = perf_counter()
     instance = load_miqp_npz(args.input)
     seeds = _resolve_seeds(args)
+    learned_block_scorer = MiqpLearnedBlockScorer.from_path(args.learned_block_model) if args.learned_block_model else None
     results = []
     for seed in seeds:
         solver = MiqpAwareRoute7Solver(
@@ -47,6 +49,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             seed=seed,
             enable_solver_portfolio=not args.disable_solver_portfolio,
             qaoa_max_qubits=args.qaoa_max_qubits,
+            block_pool=args.block_pool,
+            blocks_per_iteration=args.blocks_per_iteration,
+            candidate_budget_per_block=args.candidate_budget_per_block,
+            max_lp_evals=args.max_lp_evals,
+            time_limit_sec=args.time_limit_sec,
+            learned_block_scorer=learned_block_scorer,
         )
         results.append((seed, solver.solve(instance)))
     best_seed, result = max(
@@ -83,6 +91,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             objective=np.asarray(result.solution.objective, dtype=float),
             feasible=np.asarray(result.solution.feasible, dtype=bool),
         )
+    if args.trace_jsonl is not None:
+        args.trace_jsonl.parent.mkdir(parents=True, exist_ok=True)
+        lines = []
+        for seed, route_result in results:
+            for record in route_result.diagnostics.get("trace_records", []):
+                row = {
+                    "seed": seed,
+                    "instance": instance.name,
+                    "best_seed": best_seed,
+                    "selected_for_submission": seed == best_seed,
+                    **record,
+                }
+                lines.append(json.dumps(row, ensure_ascii=False, sort_keys=True))
+        args.trace_jsonl.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
     print(f"instance: {instance.name}")
     print(f"objective: {result.solution.objective}")
     print(f"feasible: {result.solution.feasible}")
@@ -116,6 +138,13 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--confidence-threshold", type=float, default=0.82)
     parser.add_argument("--disable-solver-portfolio", action="store_true")
     parser.add_argument("--qaoa-max-qubits", type=int, default=10)
+    parser.add_argument("--block-pool", action="store_true", help="Enable route7++ multi-block pool selection.")
+    parser.add_argument("--blocks-per-iteration", type=int, default=1)
+    parser.add_argument("--candidate-budget-per-block", type=int, default=None)
+    parser.add_argument("--max-lp-evals", type=int, default=None)
+    parser.add_argument("--time-limit-sec", type=float, default=None)
+    parser.add_argument("--learned-block-model", type=Path, default=None)
+    parser.add_argument("--trace-jsonl", type=Path, default=None)
     return parser
 
 
