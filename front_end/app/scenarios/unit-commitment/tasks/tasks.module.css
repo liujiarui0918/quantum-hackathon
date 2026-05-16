@@ -141,3 +141,8 @@
   gap: 10px;
   margin-top: 12px;
 }
+
+/** 本页作用域：配合 :global 满足 CSS Modules「纯选择器」要求，覆盖全局 .btn:hover 对危险按钮的描边 */
+.pageRoot :global(.btn.btnDanger:hover) {
+  border-color: rgba(255, 77, 79, 0.55);
+}

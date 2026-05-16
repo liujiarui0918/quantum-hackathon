@@ -6,6 +6,7 @@ export interface MiqpTaskDoc extends TaskPayload {
   status: TaskStatus;
   createdAt: string;
   updatedAt: string;
+  result?: unknown;
 }
 
 const MiqpTaskSchema = new Schema<MiqpTaskDoc>(
@@ -14,6 +15,7 @@ const MiqpTaskSchema = new Schema<MiqpTaskDoc>(
     status: { type: String, required: true, enum: ['pending', 'running', 'completed'], default: 'pending' },
     createdAt: { type: String, required: true },
     updatedAt: { type: String, required: true },
+    result: { type: Schema.Types.Mixed, required: false },
 
     name: { type: String, required: true },
     datasetName: { type: String, required: true },
@@ -29,7 +31,7 @@ const MiqpTaskSchema = new Schema<MiqpTaskDoc>(
     penaltyLambda: { type: Number, required: true },
   },
   {
-    collection: 'miqp_tasks',
+    collection: 'task',
     versionKey: false,
   },
 );

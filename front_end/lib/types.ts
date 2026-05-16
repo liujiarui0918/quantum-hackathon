@@ -19,6 +19,7 @@ export interface Task extends TaskPayload {
   id: string;
   status: TaskStatus;
   createdAt: string;
+  result?: unknown;
 }
 
 export interface ValidationItem {
