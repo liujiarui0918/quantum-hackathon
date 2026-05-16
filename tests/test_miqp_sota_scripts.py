@@ -78,10 +78,6 @@ def test_miqp_train_block_model_fits_trace_jsonl():
                 str(output),
                 "--summary",
                 str(root / "summary.json"),
-                "--torch-output",
-                str(root / "model.pt"),
-                "--epochs",
-                "1",
             ]
         )
 
@@ -89,3 +85,5 @@ def test_miqp_train_block_model_fits_trace_jsonl():
         model = json.loads(output.read_text(encoding="utf-8"))
         assert model["model_type"] == "linear_block_scorer"
         assert len(model["weights"]) == len(miqp_train_block_model.BLOCK_SCORE_FEATURE_NAMES)
+        summary = json.loads((root / "summary.json").read_text(encoding="utf-8"))
+        assert summary["model_scope"] == "non_neural_linear_ranker"

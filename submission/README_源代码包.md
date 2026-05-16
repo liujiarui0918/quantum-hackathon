@@ -116,7 +116,7 @@ python scripts/miqp_auto_sota.py \
   --max-lp-evals 800
 ```
 
-route7++ 训练数据与学习辅助模型：
+route7++ 训练数据与非神经线性 block scorer（可选，不作为最终默认主线）：
 
 ```bash
 python scripts/miqp_trace_blocks.py \
@@ -162,7 +162,7 @@ scripts/
   miqp_selector_ablation.py  block selector 权重与聚类策略消融脚本
   miqp_trace_blocks.py  route7++ block trace/训练数据采集
   miqp_synthetic_suite.py  MIQP-like synthetic .npz 生成器
-  miqp_train_block_model.py  fallback block scorer / 可选 PyTorch 模型训练
+  miqp_train_block_model.py  非神经线性 block scorer 训练
   miqp_auto_sota.py  多配置赛马并选择每个实例的最高可行解
 
 tests/

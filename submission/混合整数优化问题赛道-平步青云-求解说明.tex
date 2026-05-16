@@ -169,7 +169,7 @@ Output: best feasible solution, objective, block trace, warm-start and cut repor
 连续变量经典化 & 已落地 & 固定 $x$ 后，$y$ 始终由 LP 子问题求解；提交结果没有把 $y$ 离散化进全局 QUBO。\\
 结构化 subQUBO 切块 & 已落地 & block 由 $Q$ 耦合强度、目标边际、$A$ 混合约束参与度和 $B$ 选择约束参与度共同决定，不做随机切块；默认控制在 15--20 bit 附近。\\
 约束保持 mixer & 部分落地 & 当前实现了固定 Hamming weight/交换型的 XY-mixer proxy 候选，用来保持 $B$ 类选择约束；完整 XY mixer 量子线路尚未并入 route7 主循环。\\
-学习指导不只 bit ranking & 部分落地 & 已有可插拔 weights、cluster selector、solver portfolio 和 fixing plan；真正训练 block partition/solver choice 的 GNN/RL 模型仍是下一步。\\
+学习指导不只 bit ranking & 降级为非神经接口 & 已有可插拔 weights、cluster selector、solver portfolio、fixing plan 和 trace；由于样本标签太少，GNN/RL 不进入当前最终主线。\\
 量子求解器 portfolio & 已落地一半 & 小 block 使用 exact，中 block 使用 learning-guided/annealing，较小目标 block 可走 QAOA；当前最强 B 结果主要来自 portfolio 与 LP repair，不宣称是真实 QPU 结果。\\
 浅层参数现实性 & 已落地 & QAOA 默认使用浅层 $p=1$，把收益放在更好的 block、初态和 cut，而不是堆很深线路。\\
 \bottomrule
@@ -238,7 +238,7 @@ m=c+\operatorname{diag}(Q)+2Q\bar{x},
   \item 对 cardinality/选择类 $B$ 约束，当前实现了交换型 XY-mixer proxy 候选，优先尝试“drop-one/add-one”的 Hamming weight 保持移动。
 \end{itemize}
 
-因此，当前结果是\textbf{混合量子启发/量子可插拔算法}：block-QAOA 基线确实运行了 10-qubit 模拟线路，route7 主算法也具备 QAOA backend 接口；但样例 B 的最强提交结果主要来自 MIQP-aware block portfolio、修复和 LP 子问题，并不是在真实 QPU 上一次性求出的结果。主办方堡垒机中的 \texttt{qiskit} 容器和沐曦 GPU 可以用于两件事：一是用 Qiskit Aer GPU 加速小 block QAOA shots；二是训练 GNN/RL selector 或 bit probability 模型。它不适合把 $n=80$ 的全局问题直接做大 statevector 模拟。
+因此，当前结果是\textbf{混合量子启发/量子可插拔算法}：block-QAOA 基线确实运行了 10-qubit 模拟线路，route7 主算法也具备 QAOA backend 接口；但样例 B 的最强提交结果主要来自 MIQP-aware block portfolio、修复和 LP 子问题，并不是在真实 QPU 上一次性求出的结果。主办方堡垒机中的 \texttt{qiskit} 容器和沐曦 GPU 可用于加速小 block QAOA shots 或并行赛马；当前最终提交不依赖 GNN/RL 训练，也不适合把 $n=80$ 的全局问题直接做大 statevector 模拟。
 
 \section{量子线路实现}
 
@@ -407,13 +407,13 @@ B \textbf{miqp\_aware\_route7} & \textbf{577.780995} & \textbf{5.323} & 20-bit b
 \begin{enumerate}
   \item \textbf{MIQP-aware 而非通用 QUBO 堆叠。} 方案识别出 $y$ 是连续 LP 子问题，不将其离散化为额外 qubit，避免规模和精度双重损失。
   \item \textbf{把量子资源用于高价值二进制 block。} block selector 根据 $Q,A,B$ 的结构选择强耦合变量子图，让 QAOA/退火层处理最值得搜索的部分。
-  \item \textbf{warm-start、ranking、fixing plan 可插拔。} 当前线性策略可解释，后续可以直接替换为 GNN/RL 模型，输入为 QUBO graph 特征，输出为 bit probability。
+  \item \textbf{warm-start、ranking、fixing plan 可插拔。} 当前采用可解释线性策略和结构化 block pool；神经模型需要大量标签，当前提交不使用 GNN/RL。
   \item \textbf{LP 对偶 cut advice。} 固定 $x$ 后不只求一个 $y$，还提取连续子问题的对偶信息，为下一轮 block 搜索提供结构信号。
   \item \textbf{工程可复现。} 所有结果通过 CLI 输出 JSON/NPZ，测试覆盖 loader、block selector、warm-start、cut advisor 与七条路线集成。
 \end{enumerate}
 
-\paragraph{GNN/RL 替代思路}
-这里说的“后续替换为 GNN/RL”不是泛泛加深模型。GNN 版本会把变量看成节点，把 $Q_{ij}$、同约束参与度、$A/G/B$ 行关联看成边或超边特征，输出三类信号：$P(x_i=1)$、变量进入 block 的概率、变量固定/释放建议。RL 版本则把一次 route7 迭代看成 action：选择哪个 block、调用 exact/annealing/QAOA 哪个 solver、是否应用 cut advice、是否做 destroy/repair；reward 用可行目标提升、gap 降低和运行时间惩罚共同定义。今晚已经落地的是接口、数据记录和 ablation；真正训练模型需要更多模拟实例和 exact/annealing 标签。
+\paragraph{为什么当前不采用 GNN/RL}
+GNN/RL 只有在拥有足够多的 block improvement、exact/annealing 标签和真实分布样本时才可能稳定优于结构化启发式。当前可用真实样例只有 A/B，临场合成数据与最终测试分布存在偏移风险，因此最终主线回退为非神经 MIQP-aware route7++：用 $Q,A,B$ 结构、LP 对偶 cut 和历史 improvement 做可解释 block 选择，再由 repair+LP 统一验证可行目标值。GNN/RL 仅保留为赛后研究方向，不参与当前提交结果。
 
 \section{算法对比分析}
 
