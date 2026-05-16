@@ -17,7 +17,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <small>Quantum Hackathon</small>
             </div>
             <nav className="nav">
-              <a href="/tasks">任务管理</a>
+              <a href="/scenarios/unit-commitment/tasks">任务管理</a>
             </nav>
           </header>
           {children}

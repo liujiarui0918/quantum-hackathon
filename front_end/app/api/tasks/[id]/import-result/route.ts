@@ -8,16 +8,16 @@ import { importTaskResult } from '@/lib/task-store';
 type Ctx = { params: Promise<{ id: string }> };
 
 async function saveFiles(files: File[], folder: string): Promise<string[]> {
-  const outDir = path.join(process.cwd(), 'public', 'uploads', 'miqp-results', folder);
+  const outDir = path.join(process.cwd(), 'app', 'upload_img');
   await mkdir(outDir, { recursive: true });
   const urls: string[] = [];
   for (const f of files) {
     const ext = path.extname(f.name || '') || '.png';
-    const fileName = `${Date.now()}-${randomUUID()}${ext}`;
+    const fileName = `${folder}-${Date.now()}-${randomUUID()}${ext}`;
     const abs = path.join(outDir, fileName);
     const buf = Buffer.from(await f.arrayBuffer());
     await writeFile(abs, buf);
-    urls.push(`/uploads/miqp-results/${folder}/${fileName}`);
+    urls.push(`/api/upload-img/${fileName}`);
   }
   return urls;
 }
@@ -29,6 +29,7 @@ export async function POST(req: Request, ctx: Ctx) {
     const form = await req.formData();
     const rawJson = String(form.get('rawJson') ?? '');
     if (!rawJson) return NextResponse.json({ error: 'missing_raw_json' }, { status: 400 });
+    JSON.parse(rawJson);
 
     const runningFiles = form
       .getAll('runningImages')

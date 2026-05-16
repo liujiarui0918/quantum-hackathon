@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { connectMongo } from '@/lib/mongodb';
 import { MiqpTask } from '@/lib/models/miqp-task';
-import type { Task, TaskPayload, TaskResultPayload, TaskStatus } from './types';
+import type { Task, TaskPayload, TaskStatus } from './types';
 
 function nowIso() {
   return new Date().toISOString();
@@ -114,25 +114,30 @@ export async function importTaskResult(
   await ensureMongo();
   const cur = (await MiqpTask.findOne({ id }).lean().exec()) as Record<string, unknown> | null;
   if (!cur || cur.status !== 'running') return false;
-  const parsed = JSON.parse(rawJson) as Record<string, unknown>;
-  const merged = {
-    ...parsed,
-    images: {
-      runningInfo: runningImages,
-      compareInfo: compareImages,
+  const r = await MiqpTask.updateOne(
+    { id },
+    {
+      $set: {
+        status: 'completed',
+        result: {
+          rawJson,
+          runImgList: runningImages,
+          compareImgList: compareImages,
+        },
+        updatedAt: nowIso(),
+      },
     },
-  };
-  const r = await MiqpTask.updateOne({ id }, { $set: { result: merged, updatedAt: nowIso() } }).exec();
+  ).exec();
   return r.matchedCount > 0;
 }
 
 export type TaskResultLookup =
-  | { ok: true; data: TaskResultPayload }
+  | { ok: true; data: { task: Task; result: unknown } }
   | { ok: false; reason: 'not_found' | 'not_completed' };
 
 export async function lookupTaskResult(taskId: string): Promise<TaskResultLookup> {
   const task = await getTask(taskId);
   if (!task) return { ok: false, reason: 'not_found' };
   if (!task.result) return { ok: false, reason: 'not_completed' };
-  return { ok: true, data: task.result as TaskResultPayload };
+  return { ok: true, data: { task, result: task.result } };
 }
