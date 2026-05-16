@@ -41,6 +41,7 @@ def _row_from_result(path: Path) -> dict[str, Any]:
         "gap": gap,
         "feasible": bool(solution["feasible"]),
         "best_seed": payload.get("best_seed"),
+        "runtime_ms": payload.get("runtime_ms"),
         "mode": route["diagnostics"]["mode"],
         "candidate_evaluations": route["diagnostics"]["candidate_evaluations"],
         "path": str(path),
@@ -51,17 +52,20 @@ def _render_markdown(rows: list[dict[str, Any]]) -> str:
     lines = [
         "# MIQP Route 7 Result Summary",
         "",
-        "| Instance | Size | Objective | Official | Gap | Feasible | Best seed | Mode | Evaluations |",
-        "| --- | ---: | ---: | ---: | ---: | --- | ---: | --- | ---: |",
+        "| Instance | Size | Objective | Official | Gap | Feasible | Best seed | Runtime ms | Mode | Evaluations |",
+        "| --- | ---: | ---: | ---: | ---: | --- | ---: | ---: | --- | ---: |",
     ]
     for row in rows:
         official = "-" if row["official"] is None else f"{float(row['official']):.6f}"
         gap = "-" if row["gap"] is None else f"{100.0 * float(row['gap']):.2f}%"
+        runtime = "-" if row["runtime_ms"] is None else f"{float(row['runtime_ms']):.3f}"
         lines.append(
             "| {instance} | n={n}, p={p}, m1={m1}, m2={m2} | {objective:.6f} | "
-            "{official_text} | {gap_text} | {feasible} | {best_seed} | {mode} | {candidate_evaluations} |".format(
+            "{official_text} | {gap_text} | {feasible} | {best_seed} | {runtime_text} | {mode} | "
+            "{candidate_evaluations} |".format(
                 official_text=official,
                 gap_text=gap,
+                runtime_text=runtime,
                 **row,
             )
         )

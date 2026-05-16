@@ -1,0 +1,1644 @@
+{
+  "instance": {
+    "name": "miqp_sample_B",
+    "n": 80,
+    "p": 20,
+    "m1": 20,
+    "m2": 4,
+    "q_density": 1.0,
+    "q_abs_max": 1.9911835123169306,
+    "a_abs_max": 4.997656479614988,
+    "g_abs_max": 4.999768254595225,
+    "b_min": 0.0,
+    "b_prime_min": 0.0,
+    "has_reference_solution": true,
+    "source_path": "量化优化\\量化优化\\2026量子计算大赛·混合整数优化问题赛道小规模测试数据\\miqp_sample_B.npz"
+  },
+  "reference_solution": {
+    "objective": 610.266638604723,
+    "optimal_value": 610.2666386047233,
+    "feasible": true,
+    "x_ones": 41,
+    "y_nonzero": 4,
+    "constraint_report": {
+      "is_feasible": true,
+      "total_violation": 6.350475700855895e-14,
+      "mixed_max_violation": 3.197442310920451e-14,
+      "binary_max_violation": 0.0,
+      "mixed_lhs": [
+        -20.56194537723961,
+        -34.88776812152682,
+        -24.004254178422997,
+        -7.34230289104255,
+        -14.80912217300289,
+        -3.5047486781144954,
+        2.783136010611699,
+        -18.068350663919247,
+        -43.55861371487017,
+        -5.818342739080265,
+        -60.79301301281461,
+        -11.54939757248718,
+        -52.594891632638195,
+        -22.16315906070585,
+        -14.187943108115391,
+        2.0511896630647612,
+        15.705374418015836,
+        11.829909252963503,
+        7.71173138164194,
+        -19.337518016170293
+      ],
+      "binary_lhs": [
+        22.0,
+        23.0,
+        4.0,
+        23.0
+      ]
+    }
+  },
+  "portfolio": [
+    {
+      "seed": 3,
+      "objective": 569.3383443415585,
+      "feasible": true,
+      "mode": "miqp_aware_block_heuristic"
+    },
+    {
+      "seed": 7,
+      "objective": 573.6966057938669,
+      "feasible": true,
+      "mode": "miqp_aware_block_heuristic"
+    },
+    {
+      "seed": 11,
+      "objective": 577.7809946311954,
+      "feasible": true,
+      "mode": "miqp_aware_block_heuristic"
+    },
+    {
+      "seed": 19,
+      "objective": 569.2913092859319,
+      "feasible": true,
+      "mode": "miqp_aware_block_heuristic"
+    }
+  ],
+  "best_seed": 11,
+  "miqp_aware_route7": {
+    "instance_name": "miqp_sample_B",
+    "solution": {
+      "status": "feasible",
+      "objective": 577.7809946311954,
+      "feasible": true,
+      "x": [
+        1,
+        1,
+        0,
+        1,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        1,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        0,
+        1,
+        1,
+        1,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        0,
+        1,
+        1,
+        1,
+        1,
+        0,
+        1,
+        1
+      ],
+      "y": [
+        0.0,
+        6.4481671219579555,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        12.336236591966154,
+        0.0,
+        0.0,
+        6.5897818211660315,
+        0.0,
+        11.696435065440777,
+        0.0,
+        0.0
+      ],
+      "diagnostics": {
+        "binary_objective": 301.10322560346503,
+        "continuous_objective": 276.67776902773033,
+        "constraint_report": {
+          "is_feasible": true,
+          "total_violation": 3.8191672047105385e-14,
+          "mixed_max_violation": 3.108624468950438e-14,
+          "binary_max_violation": 0.0,
+          "mixed_lhs": [
+            -20.778889852886905,
+            -26.090627465731828,
+            -34.45450260010131,
+            -10.004205386593284,
+            -10.55241157267443,
+            6.336945736051447,
+            7.513090230961609,
+            -0.9109620694029132,
+            -41.43131703686495,
+            -1.9322833648695905,
+            -59.34665710229358,
+            0.39503556743378,
+            -51.72354599403664,
+            -22.273745085891818,
+            -3.137797174501671,
+            2.0511896630646334,
+            15.705374418015737,
+            11.829909252963532,
+            7.71173138164194,
+            -26.023035485846933
+          ],
+          "binary_lhs": [
+            19.0,
+            23.0,
+            4.0,
+            25.0
+          ]
+        }
+      }
+    },
+    "block": {
+      "binary_indices": [
+        4,
+        5,
+        13,
+        18,
+        21,
+        34,
+        35,
+        37,
+        41,
+        45,
+        51,
+        52,
+        62,
+        63,
+        66,
+        70,
+        71,
+        73,
+        76,
+        79
+      ],
+      "frontier_indices": [
+        72,
+        78,
+        11,
+        19,
+        23,
+        20,
+        75,
+        53,
+        67,
+        2
+      ],
+      "seed_index": 45,
+      "score": 0.662736,
+      "variable_scores": [
+        {
+          "index": 4,
+          "objective_score": 0.150914,
+          "coupling_score": 0.795072,
+          "mixed_constraint_score": 0.78163,
+          "binary_constraint_score": 0.5,
+          "total_score": 0.554875
+        },
+        {
+          "index": 5,
+          "objective_score": 0.351342,
+          "coupling_score": 0.925452,
+          "mixed_constraint_score": 0.700134,
+          "binary_constraint_score": 0.75,
+          "total_score": 0.681838
+        },
+        {
+          "index": 13,
+          "objective_score": 0.177248,
+          "coupling_score": 0.776166,
+          "mixed_constraint_score": 0.625193,
+          "binary_constraint_score": 0.75,
+          "total_score": 0.562371
+        },
+        {
+          "index": 18,
+          "objective_score": 0.100797,
+          "coupling_score": 1.0,
+          "mixed_constraint_score": 0.527961,
+          "binary_constraint_score": 0.5,
+          "total_score": 0.560831
+        },
+        {
+          "index": 21,
+          "objective_score": 0.457633,
+          "coupling_score": 0.726038,
+          "mixed_constraint_score": 0.717553,
+          "binary_constraint_score": 0.75,
+          "total_score": 0.647414
+        },
+        {
+          "index": 34,
+          "objective_score": 0.315199,
+          "coupling_score": 0.799568,
+          "mixed_constraint_score": 0.767349,
+          "binary_constraint_score": 0.5,
+          "total_score": 0.602878
+        },
+        {
+          "index": 35,
+          "objective_score": 0.56441,
+          "coupling_score": 0.745271,
+          "mixed_constraint_score": 0.773327,
+          "binary_constraint_score": 0.25,
+          "total_score": 0.622333
+        },
+        {
+          "index": 37,
+          "objective_score": 0.485059,
+          "coupling_score": 0.820363,
+          "mixed_constraint_score": 0.881866,
+          "binary_constraint_score": 0.75,
+          "total_score": 0.721518
+        },
+        {
+          "index": 41,
+          "objective_score": 0.697049,
+          "coupling_score": 0.716849,
+          "mixed_constraint_score": 0.75177,
+          "binary_constraint_score": 0.75,
+          "total_score": 0.722866
+        },
+        {
+          "index": 45,
+          "objective_score": 1.0,
+          "coupling_score": 0.777212,
+          "mixed_constraint_score": 0.78821,
+          "binary_constraint_score": 0.75,
+          "total_score": 0.842166
+        },
+        {
+          "index": 51,
+          "objective_score": 0.356913,
+          "coupling_score": 0.815409,
+          "mixed_constraint_score": 0.730316,
+          "binary_constraint_score": 0.75,
+          "total_score": 0.65103
+        },
+        {
+          "index": 52,
+          "objective_score": 0.168864,
+          "coupling_score": 0.842509,
+          "mixed_constraint_score": 0.664995,
+          "binary_constraint_score": 1.0,
+          "total_score": 0.628536
+        },
+        {
+          "index": 62,
+          "objective_score": 0.566853,
+          "coupling_score": 0.786889,
+          "mixed_constraint_score": 0.716413,
+          "binary_constraint_score": 0.5,
+          "total_score": 0.66375
+        },
+        {
+          "index": 63,
+          "objective_score": 0.420893,
+          "coupling_score": 0.849133,
+          "mixed_constraint_score": 0.781708,
+          "binary_constraint_score": 0.5,
+          "total_score": 0.654806
+        },
+        {
+          "index": 66,
+          "objective_score": 0.643254,
+          "coupling_score": 0.907852,
+          "mixed_constraint_score": 0.645155,
+          "binary_constraint_score": 1.0,
+          "total_score": 0.789756
+        },
+        {
+          "index": 70,
+          "objective_score": 0.226759,
+          "coupling_score": 0.775587,
+          "mixed_constraint_score": 0.850773,
+          "binary_constraint_score": 0.5,
+          "total_score": 0.584638
+        },
+        {
+          "index": 71,
+          "objective_score": 0.556789,
+          "coupling_score": 0.857855,
+          "mixed_constraint_score": 0.767033,
+          "binary_constraint_score": 0.5,
+          "total_score": 0.695692
+        },
+        {
+          "index": 73,
+          "objective_score": 0.936895,
+          "coupling_score": 0.787261,
+          "mixed_constraint_score": 0.698875,
+          "binary_constraint_score": 0.5,
+          "total_score": 0.771385
+        },
+        {
+          "index": 76,
+          "objective_score": 0.570679,
+          "coupling_score": 0.777591,
+          "mixed_constraint_score": 0.634404,
+          "binary_constraint_score": 0.5,
+          "total_score": 0.645241
+        },
+        {
+          "index": 79,
+          "objective_score": 0.361319,
+          "coupling_score": 0.813947,
+          "mixed_constraint_score": 0.912588,
+          "binary_constraint_score": 0.5,
+          "total_score": 0.650795
+        }
+      ],
+      "rationale": {
+        "strategy": "greedy",
+        "max_block_size": 20,
+        "frontier_size": 10,
+        "score_weights": {
+          "objective": 0.3,
+          "coupling": 0.35,
+          "mixed_constraint": 0.2,
+          "binary_constraint": 0.15
+        },
+        "incumbent_ones": null,
+        "excluded_count": 0
+      }
+    },
+    "warm_start": {
+      "probabilities": [
+        {
+          "index": 73,
+          "score": 1.177057,
+          "probability_one": 0.764418,
+          "confidence": 0.764418
+        },
+        {
+          "index": 8,
+          "score": 1.068922,
+          "probability_one": 0.744392,
+          "confidence": 0.744392
+        },
+        {
+          "index": 74,
+          "score": 1.066166,
+          "probability_one": 0.743867,
+          "confidence": 0.743867
+        },
+        {
+          "index": 45,
+          "score": 1.038122,
+          "probability_one": 0.738487,
+          "confidence": 0.738487
+        },
+        {
+          "index": 24,
+          "score": 1.018844,
+          "probability_one": 0.734747,
+          "confidence": 0.734747
+        },
+        {
+          "index": 47,
+          "score": 0.982458,
+          "probability_one": 0.727596,
+          "confidence": 0.727596
+        },
+        {
+          "index": 0,
+          "score": 0.916251,
+          "probability_one": 0.714278,
+          "confidence": 0.714278
+        },
+        {
+          "index": 35,
+          "score": 0.881325,
+          "probability_one": 0.707097,
+          "confidence": 0.707097
+        },
+        {
+          "index": 71,
+          "score": 0.837445,
+          "probability_one": 0.697927,
+          "confidence": 0.697927
+        },
+        {
+          "index": 68,
+          "score": 0.82691,
+          "probability_one": 0.695701,
+          "confidence": 0.695701
+        },
+        {
+          "index": 29,
+          "score": 0.819251,
+          "probability_one": 0.694077,
+          "confidence": 0.694077
+        },
+        {
+          "index": 25,
+          "score": 0.818186,
+          "probability_one": 0.693851,
+          "confidence": 0.693851
+        },
+        {
+          "index": 62,
+          "score": 0.814907,
+          "probability_one": 0.693154,
+          "confidence": 0.693154
+        },
+        {
+          "index": 38,
+          "score": 0.796429,
+          "probability_one": 0.68921,
+          "confidence": 0.68921
+        },
+        {
+          "index": 69,
+          "score": 0.793156,
+          "probability_one": 0.688509,
+          "confidence": 0.688509
+        },
+        {
+          "index": 48,
+          "score": 0.777222,
+          "probability_one": 0.685081,
+          "confidence": 0.685081
+        },
+        {
+          "index": 9,
+          "score": 0.749898,
+          "probability_one": 0.679156,
+          "confidence": 0.679156
+        },
+        {
+          "index": 39,
+          "score": 0.739232,
+          "probability_one": 0.676828,
+          "confidence": 0.676828
+        },
+        {
+          "index": 14,
+          "score": 0.725922,
+          "probability_one": 0.67391,
+          "confidence": 0.67391
+        },
+        {
+          "index": 41,
+          "score": 0.718773,
+          "probability_one": 0.672337,
+          "confidence": 0.672337
+        },
+        {
+          "index": 43,
+          "score": 0.713331,
+          "probability_one": 0.671137,
+          "confidence": 0.671137
+        },
+        {
+          "index": 23,
+          "score": 0.706773,
+          "probability_one": 0.669688,
+          "confidence": 0.669688
+        },
+        {
+          "index": 17,
+          "score": 0.699038,
+          "probability_one": 0.667974,
+          "confidence": 0.667974
+        },
+        {
+          "index": 79,
+          "score": 0.697652,
+          "probability_one": 0.667667,
+          "confidence": 0.667667
+        },
+        {
+          "index": 63,
+          "score": 0.695985,
+          "probability_one": 0.667297,
+          "confidence": 0.667297
+        },
+        {
+          "index": 46,
+          "score": 0.694775,
+          "probability_one": 0.667028,
+          "confidence": 0.667028
+        },
+        {
+          "index": 32,
+          "score": 0.679719,
+          "probability_one": 0.663676,
+          "confidence": 0.663676
+        },
+        {
+          "index": 60,
+          "score": 0.66499,
+          "probability_one": 0.66038,
+          "confidence": 0.66038
+        },
+        {
+          "index": 28,
+          "score": 0.646454,
+          "probability_one": 0.656211,
+          "confidence": 0.656211
+        },
+        {
+          "index": 12,
+          "score": 0.629301,
+          "probability_one": 0.652331,
+          "confidence": 0.652331
+        },
+        {
+          "index": 78,
+          "score": 0.628147,
+          "probability_one": 0.652069,
+          "confidence": 0.652069
+        },
+        {
+          "index": 6,
+          "score": 0.615542,
+          "probability_one": 0.649204,
+          "confidence": 0.649204
+        },
+        {
+          "index": 34,
+          "score": 0.583829,
+          "probability_one": 0.641948,
+          "confidence": 0.641948
+        },
+        {
+          "index": 66,
+          "score": 0.583574,
+          "probability_one": 0.641889,
+          "confidence": 0.641889
+        },
+        {
+          "index": 2,
+          "score": 0.581904,
+          "probability_one": 0.641505,
+          "confidence": 0.641505
+        },
+        {
+          "index": 50,
+          "score": 0.58061,
+          "probability_one": 0.641208,
+          "confidence": 0.641208
+        },
+        {
+          "index": 7,
+          "score": 0.576121,
+          "probability_one": 0.640174,
+          "confidence": 0.640174
+        },
+        {
+          "index": 37,
+          "score": 0.575149,
+          "probability_one": 0.63995,
+          "confidence": 0.63995
+        },
+        {
+          "index": 76,
+          "score": 0.57067,
+          "probability_one": 0.638918,
+          "confidence": 0.638918
+        },
+        {
+          "index": 1,
+          "score": 0.559515,
+          "probability_one": 0.63634,
+          "confidence": 0.63634
+        },
+        {
+          "index": 26,
+          "score": 0.545046,
+          "probability_one": 0.632986,
+          "confidence": 0.632986
+        },
+        {
+          "index": 70,
+          "score": 0.535276,
+          "probability_one": 0.630713,
+          "confidence": 0.630713
+        },
+        {
+          "index": 49,
+          "score": 0.528918,
+          "probability_one": 0.629231,
+          "confidence": 0.629231
+        },
+        {
+          "index": 22,
+          "score": 0.515262,
+          "probability_one": 0.626039,
+          "confidence": 0.626039
+        },
+        {
+          "index": 15,
+          "score": 0.510092,
+          "probability_one": 0.624828,
+          "confidence": 0.624828
+        },
+        {
+          "index": 44,
+          "score": 0.502387,
+          "probability_one": 0.62302,
+          "confidence": 0.62302
+        },
+        {
+          "index": 10,
+          "score": 0.495241,
+          "probability_one": 0.62134,
+          "confidence": 0.62134
+        },
+        {
+          "index": 21,
+          "score": 0.473782,
+          "probability_one": 0.616279,
+          "confidence": 0.616279
+        },
+        {
+          "index": 36,
+          "score": 0.463554,
+          "probability_one": 0.613857,
+          "confidence": 0.613857
+        },
+        {
+          "index": 33,
+          "score": 0.458935,
+          "probability_one": 0.612761,
+          "confidence": 0.612761
+        },
+        {
+          "index": 54,
+          "score": 0.457772,
+          "probability_one": 0.612486,
+          "confidence": 0.612486
+        },
+        {
+          "index": 4,
+          "score": 0.42597,
+          "probability_one": 0.604911,
+          "confidence": 0.604911
+        },
+        {
+          "index": 16,
+          "score": 0.421705,
+          "probability_one": 0.603891,
+          "confidence": 0.603891
+        },
+        {
+          "index": 42,
+          "score": 0.415793,
+          "probability_one": 0.602476,
+          "confidence": 0.602476
+        },
+        {
+          "index": 58,
+          "score": 0.396085,
+          "probability_one": 0.597747,
+          "confidence": 0.597747
+        },
+        {
+          "index": 55,
+          "score": 0.392695,
+          "probability_one": 0.596931,
+          "confidence": 0.596931
+        },
+        {
+          "index": 20,
+          "score": 0.376761,
+          "probability_one": 0.593092,
+          "confidence": 0.593092
+        },
+        {
+          "index": 51,
+          "score": 0.366637,
+          "probability_one": 0.590646,
+          "confidence": 0.590646
+        },
+        {
+          "index": 31,
+          "score": 0.360633,
+          "probability_one": 0.589194,
+          "confidence": 0.589194
+        },
+        {
+          "index": 5,
+          "score": 0.359652,
+          "probability_one": 0.588956,
+          "confidence": 0.588956
+        },
+        {
+          "index": 56,
+          "score": 0.349718,
+          "probability_one": 0.586549,
+          "confidence": 0.586549
+        },
+        {
+          "index": 75,
+          "score": 0.346709,
+          "probability_one": 0.585819,
+          "confidence": 0.585819
+        },
+        {
+          "index": 40,
+          "score": 0.279512,
+          "probability_one": 0.569427,
+          "confidence": 0.569427
+        },
+        {
+          "index": 53,
+          "score": 0.265358,
+          "probability_one": 0.565953,
+          "confidence": 0.565953
+        },
+        {
+          "index": 19,
+          "score": 0.247955,
+          "probability_one": 0.561673,
+          "confidence": 0.561673
+        },
+        {
+          "index": 65,
+          "score": 0.245894,
+          "probability_one": 0.561166,
+          "confidence": 0.561166
+        },
+        {
+          "index": 59,
+          "score": 0.219981,
+          "probability_one": 0.554775,
+          "confidence": 0.554775
+        },
+        {
+          "index": 3,
+          "score": 0.219497,
+          "probability_one": 0.554655,
+          "confidence": 0.554655
+        },
+        {
+          "index": 30,
+          "score": 0.194796,
+          "probability_one": 0.548546,
+          "confidence": 0.548546
+        },
+        {
+          "index": 77,
+          "score": 0.185285,
+          "probability_one": 0.546189,
+          "confidence": 0.546189
+        },
+        {
+          "index": 61,
+          "score": 0.180715,
+          "probability_one": 0.545056,
+          "confidence": 0.545056
+        },
+        {
+          "index": 27,
+          "score": 0.168679,
+          "probability_one": 0.54207,
+          "confidence": 0.54207
+        },
+        {
+          "index": 57,
+          "score": 0.144372,
+          "probability_one": 0.53603,
+          "confidence": 0.53603
+        },
+        {
+          "index": 13,
+          "score": 0.142012,
+          "probability_one": 0.535443,
+          "confidence": 0.535443
+        },
+        {
+          "index": 52,
+          "score": 0.118111,
+          "probability_one": 0.529494,
+          "confidence": 0.529494
+        },
+        {
+          "index": 72,
+          "score": 0.101719,
+          "probability_one": 0.525408,
+          "confidence": 0.525408
+        },
+        {
+          "index": 18,
+          "score": 0.052888,
+          "probability_one": 0.513219,
+          "confidence": 0.513219
+        },
+        {
+          "index": 67,
+          "score": 0.024885,
+          "probability_one": 0.506221,
+          "confidence": 0.506221
+        },
+        {
+          "index": 64,
+          "score": -0.001385,
+          "probability_one": 0.499654,
+          "confidence": 0.500346
+        },
+        {
+          "index": 11,
+          "score": -0.087329,
+          "probability_one": 0.478182,
+          "confidence": 0.521818
+        }
+      ],
+      "fixing_plan": {
+        "confidence_threshold": 0.82,
+        "fixed_bits": [],
+        "free_bits": [
+          73,
+          45,
+          35,
+          71,
+          62,
+          41,
+          79,
+          63,
+          34,
+          66,
+          37,
+          76,
+          70,
+          21,
+          4,
+          51,
+          5,
+          13,
+          52,
+          18
+        ],
+        "ranked_bits": [
+          {
+            "index": 73,
+            "score": 1.177057,
+            "probability_one": 0.764418
+          },
+          {
+            "index": 45,
+            "score": 1.038122,
+            "probability_one": 0.738487
+          },
+          {
+            "index": 35,
+            "score": 0.881325,
+            "probability_one": 0.707097
+          },
+          {
+            "index": 71,
+            "score": 0.837445,
+            "probability_one": 0.697927
+          },
+          {
+            "index": 62,
+            "score": 0.814907,
+            "probability_one": 0.693154
+          },
+          {
+            "index": 41,
+            "score": 0.718773,
+            "probability_one": 0.672337
+          },
+          {
+            "index": 79,
+            "score": 0.697652,
+            "probability_one": 0.667667
+          },
+          {
+            "index": 63,
+            "score": 0.695985,
+            "probability_one": 0.667297
+          },
+          {
+            "index": 34,
+            "score": 0.583829,
+            "probability_one": 0.641948
+          },
+          {
+            "index": 66,
+            "score": 0.583574,
+            "probability_one": 0.641889
+          },
+          {
+            "index": 37,
+            "score": 0.575149,
+            "probability_one": 0.63995
+          },
+          {
+            "index": 76,
+            "score": 0.57067,
+            "probability_one": 0.638918
+          },
+          {
+            "index": 70,
+            "score": 0.535276,
+            "probability_one": 0.630713
+          },
+          {
+            "index": 21,
+            "score": 0.473782,
+            "probability_one": 0.616279
+          },
+          {
+            "index": 4,
+            "score": 0.42597,
+            "probability_one": 0.604911
+          },
+          {
+            "index": 51,
+            "score": 0.366637,
+            "probability_one": 0.590646
+          },
+          {
+            "index": 5,
+            "score": 0.359652,
+            "probability_one": 0.588956
+          },
+          {
+            "index": 13,
+            "score": 0.142012,
+            "probability_one": 0.535443
+          },
+          {
+            "index": 52,
+            "score": 0.118111,
+            "probability_one": 0.529494
+          },
+          {
+            "index": 18,
+            "score": 0.052888,
+            "probability_one": 0.513219
+          }
+        ]
+      },
+      "threshold_assignment": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "repaired_assignment": [
+        1,
+        1,
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        0,
+        1,
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        1,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        1,
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0,
+        1,
+        1
+      ],
+      "rationale": {
+        "strategy": "objective_marginal_plus_constraint_relief",
+        "temperature": 1.0,
+        "confidence_threshold": 0.82,
+        "block_size": 20
+      }
+    },
+    "cuts": [
+      {
+        "cut_type": "benders_optimality",
+        "theta_rhs": 26.806701723451297,
+        "x_coefficients": [
+          4.878736849600801,
+          8.257055564904594,
+          10.508421838937801,
+          9.592421638819722,
+          7.959415019085384,
+          7.448365212795644,
+          4.141885815160188,
+          8.974126239115954,
+          5.84127772208876,
+          7.07882887858742,
+          7.187414417842779,
+          4.474927715795837,
+          6.907046367476745,
+          6.925611258266531,
+          5.879674442144328,
+          8.001928075848959,
+          4.553283860891895,
+          8.503014946745298,
+          2.219070520187184,
+          5.7031177971714255,
+          5.455258990673544,
+          7.382662975240124,
+          4.404260682931854,
+          9.745441145017665,
+          4.784535403989976,
+          4.684577574400604,
+          4.434068461512215,
+          6.050995170125635,
+          7.988106077012713,
+          7.874478768740279,
+          10.250955031465665,
+          7.190649986911918,
+          6.935478301507207,
+          9.35384032110649,
+          7.554499839381228,
+          5.239027074521126,
+          6.663008957442024,
+          9.63575318561892,
+          10.173174874443829,
+          9.137740155374797,
+          6.812579166651271,
+          7.380975611372625,
+          5.7494808294022555,
+          3.50691748666575,
+          8.487851340784447,
+          7.62041437339664,
+          6.249483592927167,
+          3.709473644813114,
+          4.580528566593392,
+          6.389793175345648,
+          11.222727699798732,
+          4.387299753150291,
+          5.39204513861932,
+          3.2867405720833793,
+          8.38055111956661,
+          9.767289230023863,
+          7.383538696458547,
+          6.0826279153961185,
+          5.010129248674219,
+          5.017330493448365,
+          6.975504950374329,
+          4.934432456173275,
+          7.770475827813113,
+          7.969546355628821,
+          8.883306133408901,
+          7.097712098782582,
+          3.6230235728935,
+          5.79104983426622,
+          5.1349770516624575,
+          4.915277883960247,
+          6.263959874280104,
+          7.5945500210868,
+          10.053274102857596,
+          5.580958387862414,
+          3.6158885513717167,
+          5.82771958017984,
+          6.890323274135872,
+          5.691923850575748,
+          3.4366556208619645,
+          9.658644346497738
+        ],
+        "active_constraints": [
+          15,
+          16,
+          17,
+          18
+        ],
+        "violation_rows": [],
+        "diagnostics": {
+          "continuous_objective": 276.67776902773033,
+          "cut_value_at_current_x": 276.6777690277304,
+          "cut_tightness_gap": 5.684341886080802e-14
+        }
+      }
+    ],
+    "continuous_subproblem": {
+      "status": "optimal",
+      "feasible": true,
+      "objective": 276.67776902773033,
+      "y": [
+        0.0,
+        6.4481671219579555,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        12.336236591966154,
+        0.0,
+        0.0,
+        6.5897818211660315,
+        0.0,
+        11.696435065440777,
+        0.0,
+        0.0
+      ],
+      "dual_multipliers": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.6690450564146299,
+        0.7168418167439029,
+        0.8004518990488716,
+        0.6103455539503976,
+        0.0
+      ],
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "diagnostics": {
+        "lp_fun": -276.67776902773033,
+        "mixed_rhs": [
+          122.41650514808498,
+          115.10810270610641,
+          117.33783664218997,
+          107.50285486844622,
+          98.96059653894605,
+          106.1582273699204,
+          118.47286997138184,
+          115.66294072157228,
+          98.30795152329246,
+          117.52081224793405,
+          124.55334797934985,
+          99.17838583843204,
+          118.01377362927093,
+          141.41955924514676,
+          91.13557064064436,
+          86.67203774691292,
+          101.62145918727826,
+          98.3760313979846,
+          109.93522871118688,
+          105.1636749688945
+        ],
+        "active_mixed_rows": [
+          15,
+          16,
+          17,
+          18
+        ]
+      }
+    },
+    "diagnostics": {
+      "route": "miqp_aware_learning_guided",
+      "mode": "miqp_aware_block_heuristic",
+      "candidate_evaluations": 436,
+      "exact_binary_limit": 16,
+      "candidate_limit": 128,
+      "max_iterations": 5,
+      "enable_solver_portfolio": true,
+      "qaoa_max_qubits": 10,
+      "block_history": [
+        {
+          "iteration": 0,
+          "block_indices": [
+            4,
+            5,
+            13,
+            18,
+            21,
+            34,
+            35,
+            37,
+            41,
+            45,
+            51,
+            52,
+            62,
+            63,
+            66,
+            70,
+            71,
+            73,
+            76,
+            79
+          ],
+          "candidate_count": 73,
+          "solver_portfolio": [
+            {
+              "solver": "learning_guided",
+              "status": "ran",
+              "qubo_bits": 36,
+              "samples": 10,
+              "feasible_ratio": 0.909091
+            },
+            {
+              "solver": "simulated_annealing",
+              "status": "ran",
+              "qubo_bits": 36,
+              "samples": 64,
+              "feasible_ratio": 0.015625
+            }
+          ],
+          "iteration_best_objective": 500.5313242747603,
+          "global_best_objective": 500.5313242747603
+        },
+        {
+          "iteration": 1,
+          "block_indices": [
+            2,
+            6,
+            9,
+            10,
+            11,
+            12,
+            14,
+            17,
+            27,
+            32,
+            33,
+            39,
+            44,
+            46,
+            47,
+            49,
+            50,
+            53,
+            65,
+            72
+          ],
+          "candidate_count": 89,
+          "solver_portfolio": [
+            {
+              "solver": "learning_guided",
+              "status": "ran",
+              "qubo_bits": 36,
+              "samples": 5,
+              "feasible_ratio": 0.857143
+            },
+            {
+              "solver": "simulated_annealing",
+              "status": "ran",
+              "qubo_bits": 36,
+              "samples": 64,
+              "feasible_ratio": 0.015625
+            }
+          ],
+          "iteration_best_objective": 523.9014173988031,
+          "global_best_objective": 523.9014173988031
+        },
+        {
+          "iteration": 2,
+          "block_indices": [
+            0,
+            3,
+            7,
+            8,
+            15,
+            19,
+            23,
+            24,
+            26,
+            29,
+            42,
+            55,
+            56,
+            59,
+            60,
+            64,
+            68,
+            69,
+            75,
+            78
+          ],
+          "candidate_count": 117,
+          "solver_portfolio": [
+            {
+              "solver": "learning_guided",
+              "status": "ran",
+              "qubo_bits": 35,
+              "samples": 15,
+              "feasible_ratio": 0.944444
+            },
+            {
+              "solver": "simulated_annealing",
+              "status": "ran",
+              "qubo_bits": 35,
+              "samples": 64,
+              "feasible_ratio": 0.125
+            }
+          ],
+          "iteration_best_objective": 559.1813709088265,
+          "global_best_objective": 559.1813709088265
+        },
+        {
+          "iteration": 3,
+          "block_indices": [
+            2,
+            5,
+            13,
+            18,
+            23,
+            27,
+            34,
+            37,
+            39,
+            41,
+            45,
+            51,
+            52,
+            62,
+            63,
+            66,
+            71,
+            73,
+            74,
+            79
+          ],
+          "candidate_count": 67,
+          "solver_portfolio": [
+            {
+              "solver": "learning_guided",
+              "status": "ran",
+              "qubo_bits": 36,
+              "samples": 7,
+              "feasible_ratio": 0.909091
+            },
+            {
+              "solver": "simulated_annealing",
+              "status": "ran",
+              "qubo_bits": 36,
+              "samples": 63,
+              "feasible_ratio": 0.0
+            }
+          ],
+          "iteration_best_objective": 568.1092471729665,
+          "global_best_objective": 568.1092471729665
+        },
+        {
+          "iteration": 4,
+          "block_indices": [
+            2,
+            5,
+            9,
+            10,
+            12,
+            18,
+            23,
+            27,
+            29,
+            37,
+            44,
+            64,
+            65,
+            66,
+            68,
+            72,
+            76,
+            77,
+            78,
+            79
+          ],
+          "candidate_count": 90,
+          "solver_portfolio": [
+            {
+              "solver": "learning_guided",
+              "status": "ran",
+              "qubo_bits": 36,
+              "samples": 9,
+              "feasible_ratio": 0.9
+            },
+            {
+              "solver": "simulated_annealing",
+              "status": "ran",
+              "qubo_bits": 36,
+              "samples": 64,
+              "feasible_ratio": 0.078125
+            }
+          ],
+          "iteration_best_objective": 577.7809946311954,
+          "global_best_objective": 577.7809946311954
+        }
+      ]
+    }
+  },
+  "runtime_ms": 118030.386
+}

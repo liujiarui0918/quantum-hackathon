@@ -5,6 +5,7 @@ from .route7 import (
     MiqpAwareRoute7Result,
     MiqpAwareRoute7Solver,
     MiqpBlock,
+    MiqpBlockScoreWeights,
     MiqpBlockSelector,
     MiqpCutAdvice,
     MiqpCutAdvisor,
@@ -12,6 +13,7 @@ from .route7 import (
     MiqpWarmStartAdvisor,
     MiqpWarmStartPlan,
     build_block_binary_problem,
+    build_objective_only_block_problem,
     repair_binary_constraints,
 )
 
@@ -20,6 +22,7 @@ __all__ = [
     "MiqpAwareRoute7Result",
     "MiqpAwareRoute7Solver",
     "MiqpBlock",
+    "MiqpBlockScoreWeights",
     "MiqpBlockSelector",
     "MiqpConstraintReport",
     "MiqpCutAdvice",
@@ -30,6 +33,7 @@ __all__ = [
     "MiqpWarmStartAdvisor",
     "MiqpWarmStartPlan",
     "build_block_binary_problem",
+    "build_objective_only_block_problem",
     "load_miqp_npz",
     "repair_binary_constraints",
 ]

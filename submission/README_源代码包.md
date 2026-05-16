@@ -23,7 +23,7 @@ python -m pip install -e ".[dev]"
 python -m pytest -q
 ```
 
-当前本地与远端容器验证结果：`48 passed`。
+当前本地完整验证结果：`50 passed`。
 
 ## 运行官方小规模样例
 
@@ -82,7 +82,9 @@ python scripts/miqp_baseline_study.py \
   --sa-reads 48 \
   --sa-sweeps 80 \
   --qaoa-block-size 10 \
-  --qaoa-shots 160
+  --qaoa-shots 160 \
+  --meta-population 24 \
+  --meta-iterations 8
 ```
 
 该命令会生成：
@@ -90,6 +92,19 @@ python scripts/miqp_baseline_study.py \
 - `baseline_study/miqp_baseline_study.csv`
 - `baseline_study/miqp_baseline_study.md`
 - `baseline_study/figures/*.png`
+
+block selector 权重与聚类消融：
+
+```bash
+python scripts/miqp_selector_ablation.py \
+  --inputs \
+  "量化优化/量化优化/2026量子计算大赛·混合整数优化问题赛道小规模测试数据/miqp_sample_A.npz" \
+  "量化优化/量化优化/2026量子计算大赛·混合整数优化问题赛道小规模测试数据/miqp_sample_B.npz" \
+  --output-dir selector_ablation \
+  --max-block-size 16 \
+  --max-iterations 2 \
+  --candidate-limit 48
+```
 
 ## 关键目录
 
@@ -107,16 +122,23 @@ src/quantum_hackathon/solvers/qaoa/
 scripts/
   render_miqp_results.py  结果表格渲染脚本
   miqp_baseline_study.py  横向基线、资源画像与论文插图生成脚本
+  miqp_selector_ablation.py  block selector 权重与聚类策略消融脚本
 
 tests/
   test_miqp_route7.py     MIQP 路线专用测试
   test_*                  其余七条路线与集成测试
+
+results/
+  已同步的 route7、baseline study 与 selector ablation 结果副本
 
 submission/results/
   已复现实验结果
 
 submission/baseline_study/
   横向基线结果、CSV/Markdown 表格和论文插图
+
+submission/selector_ablation/
+  selector 消融结果、CSV/Markdown 表格和插图
 ```
 
 ## 算法摘要
@@ -137,4 +159,4 @@ score variables -> select binary block -> warm-start probabilities
 -> solve LP for y -> objective and cut advice -> next block
 ```
 
-量子部分体现在 block QUBO 可转为 Ising Hamiltonian，并接入 QAOA/Aer/退火 backend。提交版本默认使用可复现的 exact、simulated annealing 和 learning-guided backend；若评审环境提供真实量子 backend，可在同一 block 接口替换执行层。
+量子部分体现在 block QUBO 可转为 Ising Hamiltonian，并接入 QAOA/Aer/退火 backend。提交版本默认使用可复现的 exact、simulated annealing、learning-guided 和小 block QAOA-compatible backend；若评审环境提供真实量子 backend 或 Aer GPU，可在同一 block 接口替换执行层。

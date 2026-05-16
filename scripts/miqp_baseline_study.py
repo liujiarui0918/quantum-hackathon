@@ -94,6 +94,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             qaoa_block_size=args.qaoa_block_size,
             qaoa_shots=args.qaoa_shots,
             global_binary_bit_cap=args.global_binary_bit_cap,
+            meta_population=args.meta_population,
+            meta_iterations=args.meta_iterations,
             route7_json_dir=args.route7_json_dir,
             route7_max_iterations=args.route7_max_iterations,
             route7_candidate_limit=args.route7_candidate_limit,
@@ -119,6 +121,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--qaoa-block-size", type=int, default=10)
     parser.add_argument("--qaoa-shots", type=int, default=160)
     parser.add_argument("--global-binary-bit-cap", type=int, default=32)
+    parser.add_argument("--meta-population", type=int, default=24)
+    parser.add_argument("--meta-iterations", type=int, default=8)
     parser.add_argument("--route7-max-iterations", type=int, default=5)
     parser.add_argument("--route7-candidate-limit", type=int, default=128)
     return parser
@@ -134,6 +138,8 @@ def run_instance_study(
     qaoa_block_size: int,
     qaoa_shots: int,
     global_binary_bit_cap: int,
+    meta_population: int,
+    meta_iterations: int,
     route7_json_dir: Path | None,
     route7_max_iterations: int,
     route7_candidate_limit: int,
@@ -183,6 +189,28 @@ def run_instance_study(
             lambda: _random_repair_search(instance, advisor, rng, random_reads),
             search_bits=instance.n,
             candidates_evaluated=random_reads,
+        )
+    )
+
+    records.append(
+        _profile(
+            instance,
+            "genetic_repair_lp",
+            "classical_metaheuristic",
+            lambda: _genetic_algorithm_search(instance, advisor, rng, meta_population, meta_iterations),
+            search_bits=instance.n,
+            candidates_evaluated=meta_population * meta_iterations,
+        )
+    )
+
+    records.append(
+        _profile(
+            instance,
+            "binary_pso_repair_lp",
+            "classical_metaheuristic",
+            lambda: _binary_pso_search(instance, advisor, rng, meta_population, meta_iterations),
+            search_bits=instance.n,
+            candidates_evaluated=meta_population * meta_iterations,
         )
     )
 
@@ -461,6 +489,132 @@ def _random_repair_search(
     return best, {"candidates_evaluated": evaluated, "notes": f"{reads} random repaired candidates"}
 
 
+def _genetic_algorithm_search(
+    instance: MiqpInstance,
+    advisor: MiqpCutAdvisor,
+    rng: random.Random,
+    population_size: int,
+    generations: int,
+) -> tuple[MiqpSolution, dict[str, Any]]:
+    probabilities = tuple()
+    population = _initial_population(instance, advisor, rng, population_size)
+    cache: dict[tuple[int, ...], MiqpSolution] = {}
+    best: MiqpSolution | None = None
+    evaluated = 0
+    for generation in range(max(1, generations)):
+        scored = []
+        for member in population:
+            key = tuple(int(value) for value in member.tolist())
+            if key not in cache:
+                cache[key] = _evaluate_x_solution(instance, advisor, member)
+                evaluated += 1
+            solution = cache[key]
+            scored.append((solution.objective if solution.feasible else float("-inf"), member))
+            if solution.feasible and (best is None or solution.objective > best.objective):
+                best = solution
+        scored.sort(key=lambda item: item[0], reverse=True)
+        elites = [member.copy() for _score, member in scored[: max(2, population_size // 4)]]
+        next_population = elites.copy()
+        while len(next_population) < population_size:
+            left = rng.choice(elites)
+            right = rng.choice(elites)
+            mask = np.asarray([1 if rng.random() < 0.5 else 0 for _ in range(instance.n)], dtype=int)
+            child = np.where(mask, left, right).astype(int)
+            mutation_rate = 0.08 if generation < generations // 2 else 0.04
+            for index in range(instance.n):
+                if rng.random() < mutation_rate:
+                    child[index] = 1 - child[index]
+            next_population.append(repair_binary_constraints(instance, child, probabilities))
+        population = next_population
+    if best is None:
+        best, _metadata = _evaluate_single_x(instance, advisor, np.zeros(instance.n, dtype=int), "GA fallback")
+    return best, {
+        "candidates_evaluated": evaluated,
+        "notes": f"genetic algorithm with population={population_size}, generations={generations}",
+    }
+
+
+def _binary_pso_search(
+    instance: MiqpInstance,
+    advisor: MiqpCutAdvisor,
+    rng: random.Random,
+    swarm_size: int,
+    iterations: int,
+) -> tuple[MiqpSolution, dict[str, Any]]:
+    probabilities = tuple()
+    positions = _initial_population(instance, advisor, rng, swarm_size)
+    velocities = np.zeros((swarm_size, instance.n), dtype=float)
+    personal_best = [position.copy() for position in positions]
+    personal_scores = [float("-inf")] * swarm_size
+    global_best: np.ndarray | None = None
+    global_solution: MiqpSolution | None = None
+    evaluated = 0
+    cache: dict[tuple[int, ...], MiqpSolution] = {}
+    for _iteration in range(max(1, iterations)):
+        for particle, position in enumerate(positions):
+            key = tuple(int(value) for value in position.tolist())
+            if key not in cache:
+                cache[key] = _evaluate_x_solution(instance, advisor, position)
+                evaluated += 1
+            solution = cache[key]
+            score = solution.objective if solution.feasible else float("-inf")
+            if score > personal_scores[particle]:
+                personal_scores[particle] = score
+                personal_best[particle] = position.copy()
+            if solution.feasible and (global_solution is None or solution.objective > global_solution.objective):
+                global_solution = solution
+                global_best = position.copy()
+        if global_best is None:
+            global_best = positions[0].copy()
+        for particle, position in enumerate(positions):
+            inertia = 0.55 * velocities[particle]
+            cognitive = 1.20 * rng.random() * (personal_best[particle] - position)
+            social = 1.20 * rng.random() * (global_best - position)
+            velocities[particle] = np.clip(inertia + cognitive + social, -6.0, 6.0)
+            probs = 1.0 / (1.0 + np.exp(-velocities[particle]))
+            next_position = np.asarray([1 if rng.random() < prob else 0 for prob in probs], dtype=int)
+            positions[particle] = repair_binary_constraints(instance, next_position, probabilities)
+    if global_solution is None:
+        global_solution, _metadata = _evaluate_single_x(instance, advisor, np.zeros(instance.n, dtype=int), "PSO fallback")
+    return global_solution, {
+        "candidates_evaluated": evaluated,
+        "notes": f"binary PSO with swarm_size={swarm_size}, iterations={iterations}",
+    }
+
+
+def _initial_population(
+    instance: MiqpInstance,
+    advisor: MiqpCutAdvisor,
+    rng: random.Random,
+    size: int,
+) -> list[np.ndarray]:
+    probabilities = tuple()
+    population = [np.zeros(instance.n, dtype=int)]
+    try:
+        warm, _metadata = _warm_start_candidate(instance, advisor)
+        population.append(warm.x.copy())
+    except Exception:
+        pass
+    try:
+        greedy, _metadata = _marginal_greedy(instance, advisor)
+        population.append(greedy.x.copy())
+    except Exception:
+        pass
+    while len(population) < max(1, size):
+        raw = np.asarray([1 if rng.random() < 0.5 else 0 for _index in range(instance.n)], dtype=int)
+        population.append(repair_binary_constraints(instance, raw, probabilities))
+    return population[: max(1, size)]
+
+
+def _evaluate_x_solution(
+    instance: MiqpInstance,
+    advisor: MiqpCutAdvisor,
+    x: np.ndarray,
+) -> MiqpSolution:
+    continuous = advisor.solve_continuous_subproblem(instance, x)
+    return _solution_from_continuous(instance, x, continuous, "feasible" if continuous.feasible else "infeasible")
+
+
 def _exact_binary_search(instance: MiqpInstance, advisor: MiqpCutAdvisor) -> tuple[MiqpSolution, dict[str, Any]]:
     best: MiqpSolution | None = None
     evaluated = 0
@@ -670,7 +824,7 @@ def _route7_record_from_payload(instance: MiqpInstance, payload: dict[str, Any])
         peak_kib=float("nan"),
         candidates_evaluated=int(route["diagnostics"].get("candidate_evaluations", 0)),
         search_bits=block_size,
-        notes=f"loaded existing result; runtime not measured in this study; {route['diagnostics'].get('mode', '')}; best_seed={payload.get('best_seed')}",
+        notes=f"loaded existing result; runtime loaded from route7 JSON; {route['diagnostics'].get('mode', '')}; best_seed={payload.get('best_seed')}",
     )
     return record
 

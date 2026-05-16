@@ -12,11 +12,13 @@ from quantum_hackathon.modeling.problem import OptimizationProblem
 from quantum_hackathon.modeling.qubo import QuboBuilder
 from quantum_hackathon.solvers import (
     BitProbability,
+    ExactSolverBackend,
     LearningGuidedSamplerBackend,
     SamplerConfig,
     SimulatedAnnealingBackend,
     VariableFixingPlan,
 )
+from quantum_hackathon.solvers.qaoa import CostHamiltonianBuilder, QaoaConfig, QaoaRunner
 
 from .model import MiqpInstance, MiqpSolution
 
@@ -147,12 +149,50 @@ class MiqpAwareRoute7Result:
         }
 
 
+@dataclass(frozen=True)
+class MiqpBlockScoreWeights:
+    objective: float = 0.30
+    coupling: float = 0.35
+    mixed_constraint: float = 0.20
+    binary_constraint: float = 0.15
+
+    def normalized(self) -> "MiqpBlockScoreWeights":
+        total = self.objective + self.coupling + self.mixed_constraint + self.binary_constraint
+        if total <= 1e-12:
+            raise ValueError("at least one block score weight must be positive")
+        return MiqpBlockScoreWeights(
+            objective=self.objective / total,
+            coupling=self.coupling / total,
+            mixed_constraint=self.mixed_constraint / total,
+            binary_constraint=self.binary_constraint / total,
+        )
+
+    def as_record(self) -> dict[str, float]:
+        return {
+            "objective": round(self.objective, 6),
+            "coupling": round(self.coupling, 6),
+            "mixed_constraint": round(self.mixed_constraint, 6),
+            "binary_constraint": round(self.binary_constraint, 6),
+        }
+
+
 class MiqpBlockSelector:
-    def __init__(self, *, max_block_size: int = 20, frontier_size: int = 10):
+    def __init__(
+        self,
+        *,
+        max_block_size: int = 20,
+        frontier_size: int = 10,
+        weights: MiqpBlockScoreWeights | None = None,
+        strategy: str = "greedy",
+    ):
         if not 1 <= max_block_size <= 30:
             raise ValueError("max_block_size must be in [1, 30]")
+        if strategy not in {"greedy", "affinity_cluster"}:
+            raise ValueError("strategy must be either 'greedy' or 'affinity_cluster'")
         self.max_block_size = max_block_size
         self.frontier_size = frontier_size
+        self.weights = (weights or MiqpBlockScoreWeights()).normalized()
+        self.strategy = strategy
 
     def score_variables(self, instance: MiqpInstance) -> tuple[MiqpVariableScore, ...]:
         objective = np.abs(instance.c + np.diag(instance.Q))
@@ -166,10 +206,10 @@ class MiqpBlockSelector:
         scores = []
         for index in range(instance.n):
             total = (
-                0.30 * objective_n[index]
-                + 0.35 * coupling_n[index]
-                + 0.20 * mixed_n[index]
-                + 0.15 * binary_n[index]
+                self.weights.objective * objective_n[index]
+                + self.weights.coupling * coupling_n[index]
+                + self.weights.mixed_constraint * mixed_n[index]
+                + self.weights.binary_constraint * binary_n[index]
             )
             scores.append(
                 MiqpVariableScore(
@@ -199,17 +239,10 @@ class MiqpBlockSelector:
         seed = seed_index if seed_index in score_by_index else scores[0].index
         selected = [seed]
         candidate_pool = set(score_by_index) - {seed}
-        while len(selected) < min(self.max_block_size, instance.n) and candidate_pool:
-            best = max(
-                candidate_pool,
-                key=lambda candidate: (
-                    _neighbor_affinity(instance, candidate, selected)
-                    + 0.45 * score_by_index[candidate].total_score,
-                    -candidate,
-                ),
-            )
-            selected.append(best)
-            candidate_pool.remove(best)
+        if self.strategy == "affinity_cluster":
+            selected, candidate_pool = self._select_affinity_cluster(instance, seed, score_by_index, candidate_pool)
+        else:
+            selected, candidate_pool = self._select_greedy(instance, selected, score_by_index, candidate_pool)
 
         frontier = sorted(
             candidate_pool,
@@ -229,13 +262,57 @@ class MiqpBlockSelector:
             score=block_score,
             variable_scores=block_scores,
             rationale={
-                "strategy": "greedy_dense_coupling_and_constraint_growth",
+                "strategy": self.strategy,
                 "max_block_size": self.max_block_size,
                 "frontier_size": self.frontier_size,
+                "score_weights": self.weights.as_record(),
                 "incumbent_ones": int(np.sum(incumbent_x)) if incumbent_x is not None else None,
                 "excluded_count": len(excluded),
             },
         )
+
+    def _select_greedy(
+        self,
+        instance: MiqpInstance,
+        selected: list[int],
+        score_by_index: dict[int, MiqpVariableScore],
+        candidate_pool: set[int],
+    ) -> tuple[list[int], set[int]]:
+        while len(selected) < min(self.max_block_size, instance.n) and candidate_pool:
+            best = max(
+                candidate_pool,
+                key=lambda candidate: (
+                    _neighbor_affinity(instance, candidate, selected)
+                    + 0.45 * score_by_index[candidate].total_score,
+                    -candidate,
+                ),
+            )
+            selected.append(best)
+            candidate_pool.remove(best)
+        return selected, candidate_pool
+
+    def _select_affinity_cluster(
+        self,
+        instance: MiqpInstance,
+        seed: int,
+        score_by_index: dict[int, MiqpVariableScore],
+        candidate_pool: set[int],
+    ) -> tuple[list[int], set[int]]:
+        selected = [seed]
+        target = min(self.max_block_size, instance.n)
+        while len(selected) < target and candidate_pool:
+            best = max(
+                candidate_pool,
+                key=lambda candidate: (
+                    _cluster_gain(instance, candidate, selected)
+                    + 0.25 * score_by_index[candidate].total_score
+                    - 0.10 * _constraint_overcrowding(instance, candidate, selected),
+                    -candidate,
+                ),
+            )
+            selected.append(best)
+            candidate_pool.remove(best)
+        return selected, candidate_pool
 
 
 class MiqpWarmStartAdvisor:
@@ -422,6 +499,8 @@ class MiqpAwareRoute7Solver:
         candidate_limit: int = 128,
         max_iterations: int = 4,
         seed: int = 7,
+        enable_solver_portfolio: bool = True,
+        qaoa_max_qubits: int = 10,
     ):
         self.block_selector = block_selector or MiqpBlockSelector()
         self.warm_start_advisor = warm_start_advisor or MiqpWarmStartAdvisor()
@@ -430,6 +509,8 @@ class MiqpAwareRoute7Solver:
         self.candidate_limit = candidate_limit
         self.max_iterations = max(1, max_iterations)
         self.seed = seed
+        self.enable_solver_portfolio = enable_solver_portfolio
+        self.qaoa_max_qubits = max(0, qaoa_max_qubits)
 
     def solve(self, instance: MiqpInstance) -> MiqpAwareRoute7Result:
         block = self.block_selector.select(instance)
@@ -455,6 +536,8 @@ class MiqpAwareRoute7Solver:
                 "exact_binary_limit": self.exact_binary_limit,
                 "candidate_limit": self.candidate_limit,
                 "max_iterations": self.max_iterations,
+                "enable_solver_portfolio": self.enable_solver_portfolio,
+                "qaoa_max_qubits": self.qaoa_max_qubits,
                 "block_history": block_history,
             },
         )
@@ -526,17 +609,27 @@ class MiqpAwareRoute7Solver:
                 )
                 current_warm_start = self.warm_start_advisor.plan(instance, block=current_block, incumbent_x=incumbent)
             base = incumbent.copy()
+            block_candidates, portfolio_records = _block_candidates_from_subqubo(
+                instance,
+                current_block,
+                base,
+                self.seed + iteration,
+                self.candidate_limit // 2,
+                enable_solver_portfolio=self.enable_solver_portfolio,
+                qaoa_max_qubits=self.qaoa_max_qubits,
+            )
             candidates = _dedupe_x_candidates(
                 [
                     base,
                     np.zeros(instance.n, dtype=int),
                     _binary_constraint_repaired_random(instance, rng),
-                    *_block_candidates_from_subqubo(
+                    *block_candidates,
+                    *_xy_mixer_proxy_candidates(
                         instance,
                         current_block,
                         base,
-                        self.seed + iteration,
-                        self.candidate_limit // 2,
+                        current_warm_start.probabilities,
+                        max_candidates=min(32, max(4, self.candidate_limit // 4)),
                     ),
                     *_single_flip_candidates(instance, current_block, base, current_warm_start.probabilities),
                 ]
@@ -566,6 +659,7 @@ class MiqpAwareRoute7Solver:
                     "iteration": iteration,
                     "block_indices": list(current_block.binary_indices),
                     "candidate_count": len(candidates),
+                    "solver_portfolio": portfolio_records,
                     "iteration_best_objective": iteration_best.objective if iteration_best is not None else None,
                     "global_best_objective": best_solution.objective if best_solution is not None else None,
                 }
@@ -651,27 +745,184 @@ def _block_candidates_from_subqubo(
     base_x: np.ndarray,
     seed: int,
     limit: int,
-) -> list[np.ndarray]:
+    *,
+    enable_solver_portfolio: bool,
+    qaoa_max_qubits: int,
+) -> tuple[list[np.ndarray], list[dict[str, Any]]]:
     if limit <= 0 or not block.binary_indices:
-        return []
+        return [], []
     try:
         problem = build_block_binary_problem(instance, block, base_x)
         model = QuboBuilder().build(problem)
     except Exception:
-        return []
+        return [], [{"solver": "subqubo_build", "status": "failed"}]
     config = SamplerConfig(seed=seed, num_reads=max(4, limit), num_sweeps=80, return_top_k=min(20, limit))
     samples = []
-    for backend in (LearningGuidedSamplerBackend(), SimulatedAnnealingBackend()):
+    portfolio_records: list[dict[str, Any]] = []
+    backend_plan: list[Any]
+    if enable_solver_portfolio:
+        backend_plan = _solver_portfolio_for_block(model.num_variables, block)
+    else:
+        backend_plan = [LearningGuidedSamplerBackend(), SimulatedAnnealingBackend()]
+    for backend in backend_plan:
         try:
             result = backend.solve(model, config)
-        except Exception:
+        except Exception as exc:
+            portfolio_records.append(
+                {
+                    "solver": backend.name,
+                    "status": "failed",
+                    "message": f"{type(exc).__name__}: {exc}",
+                    "qubo_bits": model.num_variables,
+                }
+            )
             continue
         samples.extend(result.samples[:limit])
+        portfolio_records.append(
+            {
+                "solver": backend.name,
+                "status": "ran",
+                "qubo_bits": model.num_variables,
+                "samples": len(result.samples),
+                "feasible_ratio": round(result.feasible_ratio, 6),
+            }
+        )
+    if enable_solver_portfolio and 0 < len(block.binary_indices) <= qaoa_max_qubits:
+        qaoa_candidates, qaoa_record = _qaoa_objective_block_candidates(
+            instance,
+            block,
+            base_x,
+            seed=seed,
+            shots=max(32, min(160, limit * 2)),
+        )
+        portfolio_records.append(qaoa_record)
+    else:
+        qaoa_candidates = []
     candidates = []
     for sample in samples[:limit]:
         candidate = base_x.copy()
         for bit_index, original_index in enumerate(block.binary_indices):
             candidate[original_index] = sample.bitstring[bit_index]
+        candidates.append(candidate)
+    return candidates + qaoa_candidates[:limit], portfolio_records
+
+
+def _solver_portfolio_for_block(num_qubo_bits: int, block: MiqpBlock) -> list[Any]:
+    if num_qubo_bits <= 18:
+        return [ExactSolverBackend(), LearningGuidedSamplerBackend(), SimulatedAnnealingBackend()]
+    if len(block.binary_indices) <= 20:
+        return [LearningGuidedSamplerBackend(), SimulatedAnnealingBackend()]
+    return [SimulatedAnnealingBackend()]
+
+
+def _qaoa_objective_block_candidates(
+    instance: MiqpInstance,
+    block: MiqpBlock,
+    base_x: np.ndarray,
+    *,
+    seed: int,
+    shots: int,
+) -> tuple[list[np.ndarray], dict[str, Any]]:
+    try:
+        problem = build_objective_only_block_problem(instance, block.binary_indices, base_x)
+        model = QuboBuilder().build(problem)
+        hamiltonian = CostHamiltonianBuilder.from_qubo(model)
+        result = QaoaRunner().solve(
+            model,
+            QaoaConfig(
+                p=1,
+                shots=shots,
+                seed=seed,
+                max_qubits=model.num_variables,
+                grid_size=5,
+                random_trials=8,
+                backend="local",
+            ),
+        )
+    except Exception as exc:
+        return [], {
+            "solver": "block_qaoa_objective",
+            "status": "failed",
+            "message": f"{type(exc).__name__}: {exc}",
+            "qaoa_qubits": len(block.binary_indices),
+        }
+
+    candidates = []
+    for sample in result.best_samples.samples:
+        candidate = base_x.copy()
+        for original_index in block.binary_indices:
+            candidate[original_index] = int(sample.logical_solution[f"x{original_index}"])
+        candidates.append(candidate)
+    return candidates, {
+        "solver": "block_qaoa_objective",
+        "status": "ran",
+        "qaoa_qubits": hamiltonian.num_qubits,
+        "qaoa_layers": 1,
+        "qaoa_shots": shots,
+        "qaoa_rzz_per_layer": len(hamiltonian.zz_terms),
+        "samples": len(result.best_samples.samples),
+        "note": "objective-only block QAOA; candidates are repaired/evaluated by MIQP LP loop",
+    }
+
+
+def build_objective_only_block_problem(
+    instance: MiqpInstance,
+    binary_indices: Iterable[int],
+    incumbent_x: np.ndarray,
+) -> OptimizationProblem:
+    selected = tuple(binary_indices)
+    fixed = np.asarray(incumbent_x, dtype=float)
+    selected_set = set(selected)
+    problem = OptimizationProblem(sense="maximize", name=f"{instance.name}_objective_block")
+    names = {index: problem.add_binary_var(f"x{index}") for index in selected}
+    linear: dict[str, float] = {}
+    quadratic: dict[tuple[str, str], float] = {}
+    for index in selected:
+        coefficient = instance.c[index] + instance.Q[index, index]
+        for other in range(instance.n):
+            if other not in selected_set:
+                coefficient += (instance.Q[index, other] + instance.Q[other, index]) * fixed[other]
+        linear[names[index]] = float(coefficient)
+    for left_position, left in enumerate(selected):
+        for right in selected[left_position + 1 :]:
+            coefficient = float(instance.Q[left, right] + instance.Q[right, left])
+            if abs(coefficient) > 1e-12:
+                quadratic[(names[left], names[right])] = coefficient
+    problem.set_objective(linear=linear, quadratic=quadratic)
+    return problem
+
+
+def _xy_mixer_proxy_candidates(
+    instance: MiqpInstance,
+    block: MiqpBlock,
+    base_x: np.ndarray,
+    probabilities: tuple[BitProbability, ...],
+    *,
+    max_candidates: int,
+) -> list[np.ndarray]:
+    if max_candidates <= 0 or not block.binary_indices:
+        return []
+    probability = {item.index: item.probability_one for item in probabilities}
+    active = [index for index in block.binary_indices if base_x[index] == 1]
+    inactive = [index for index in block.binary_indices if base_x[index] == 0]
+    swaps: list[tuple[float, int, int]] = []
+    for drop in active:
+        for add in inactive:
+            candidate = base_x.copy()
+            candidate[drop] = 0
+            candidate[add] = 1
+            if _binary_constraints_feasible(instance, candidate):
+                gain = (
+                    probability.get(add, 0.5)
+                    - probability.get(drop, 0.5)
+                    + 0.05 * (instance.c[add] - instance.c[drop])
+                )
+                swaps.append((float(gain), drop, add))
+    candidates = []
+    for _gain, drop, add in sorted(swaps, reverse=True)[:max_candidates]:
+        candidate = base_x.copy()
+        candidate[drop] = 0
+        candidate[add] = 1
         candidates.append(candidate)
     return candidates
 
@@ -773,6 +1024,37 @@ def _neighbor_affinity(instance: MiqpInstance, candidate: int, selected: list[in
     a_affinity = sum(float(np.abs(instance.A[:, candidate]) @ np.abs(instance.A[:, other])) for other in selected)
     b_affinity = sum(float(np.abs(instance.B[:, candidate]) @ np.abs(instance.B[:, other])) for other in selected) if instance.m2 else 0.0
     return float(_safe_scale(q_affinity) + 0.08 * _safe_scale(a_affinity) + 0.15 * _safe_scale(b_affinity))
+
+
+def _cluster_gain(instance: MiqpInstance, candidate: int, selected: list[int]) -> float:
+    if not selected:
+        return 0.0
+    gains = []
+    for other in selected:
+        q = abs(instance.Q[candidate, other]) + abs(instance.Q[other, candidate])
+        a = float(np.abs(instance.A[:, candidate]) @ np.abs(instance.A[:, other]))
+        b = (
+            float(np.abs(instance.B[:, candidate]) @ np.abs(instance.B[:, other]))
+            if instance.m2
+            else 0.0
+        )
+        gains.append(_safe_scale(q) + 0.10 * _safe_scale(a) + 0.18 * _safe_scale(b))
+    return float(sum(gains) / len(gains))
+
+
+def _constraint_overcrowding(instance: MiqpInstance, candidate: int, selected: list[int]) -> float:
+    if not instance.m2:
+        return 0.0
+    selected_usage = np.sum(instance.B[:, selected], axis=1) if selected else np.zeros(instance.m2)
+    candidate_usage = instance.B[:, candidate]
+    normalized = (selected_usage + candidate_usage) / np.maximum(instance.b_prime, 1e-9)
+    return float(np.sum(np.maximum(normalized - 0.75, 0.0)))
+
+
+def _binary_constraints_feasible(instance: MiqpInstance, x: np.ndarray) -> bool:
+    if not instance.m2:
+        return True
+    return bool(np.max(instance.B @ np.asarray(x, dtype=float) - instance.b_prime, initial=0.0) <= 1e-8)
 
 
 def _normalize(values: np.ndarray) -> np.ndarray:

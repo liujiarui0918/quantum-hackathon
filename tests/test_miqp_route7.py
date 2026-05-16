@@ -6,6 +6,8 @@ import numpy as np
 import pytest
 
 from quantum_hackathon.miqp import (
+    MiqpAwareRoute7Solver,
+    MiqpBlockScoreWeights,
     MiqpBlockSelector,
     MiqpCutAdvisor,
     MiqpWarmStartAdvisor,
@@ -39,6 +41,21 @@ def test_miqp_block_selector_respects_block_cap_on_medium_sample():
     assert len(block.frontier_indices) == 5
     assert block.score > 0.0
     assert block.seed_index in block.binary_indices
+
+
+def test_miqp_block_selector_supports_affinity_cluster_and_custom_weights():
+    instance = load_miqp_npz(SAMPLE_DIR / "miqp_sample_B.npz")
+
+    block = MiqpBlockSelector(
+        max_block_size=10,
+        frontier_size=4,
+        strategy="affinity_cluster",
+        weights=MiqpBlockScoreWeights(objective=0.2, coupling=0.5, mixed_constraint=0.2, binary_constraint=0.1),
+    ).select(instance)
+
+    assert len(block.binary_indices) == 10
+    assert block.rationale["strategy"] == "affinity_cluster"
+    assert block.rationale["score_weights"]["coupling"] == pytest.approx(0.5)
 
 
 def test_miqp_warm_start_repairs_binary_constraints():
@@ -106,3 +123,19 @@ def test_miqp_cli_writes_result_json_for_tiny_instance():
         assert payload["miqp_aware_route7"]["solution"]["feasible"] is True
         assert payload["miqp_aware_route7"]["solution"]["objective"] >= 0.0
         assert solution.exists()
+
+
+def test_miqp_route7_solver_portfolio_runs_on_tiny_instance():
+    instance = load_miqp_npz(SAMPLE_DIR / "miqp_sample_A.npz")
+
+    result = MiqpAwareRoute7Solver(
+        block_selector=MiqpBlockSelector(max_block_size=8),
+        exact_binary_limit=0,
+        candidate_limit=16,
+        max_iterations=1,
+        qaoa_max_qubits=8,
+        seed=3,
+    ).solve(instance)
+
+    assert result.solution.feasible
+    assert result.diagnostics["block_history"][0]["solver_portfolio"]

@@ -18,7 +18,7 @@
 \definecolor{RouteBlue}{HTML}{173B5F}
 \definecolor{RouteGreen}{HTML}{1E7A5F}
 \definecolor{RouteOrange}{HTML}{B95F19}
-\graphicspath{{submission/baseline_study/figures/}}
+\graphicspath{{submission/baseline_study/figures/}{submission/selector_ablation/}}
 
 \title{\textbf{混合整数优化问题赛道求解说明}}
 \author{队伍：平步青云}
@@ -156,6 +156,26 @@ Repeat for max_iterations:
 Output: best feasible solution, objective, block trace, warm-start and cut report
 \end{verbatim}
 
+\subsection{六点落地审计}
+
+针对赛前讨论中的六个设计点，当前代码并不把所有概念都包装成“已经完全解决”。真实落地状态如下：
+
+\begin{center}
+\small
+\begin{tabular}{p{3.6cm}p{2.0cm}p{8.0cm}}
+\toprule
+设计点 & 状态 & 说明 \\
+\midrule
+连续变量经典化 & 已落地 & 固定 $x$ 后，$y$ 始终由 LP 子问题求解；提交结果没有把 $y$ 离散化进全局 QUBO。\\
+结构化 subQUBO 切块 & 已落地 & block 由 $Q$ 耦合强度、目标边际、$A$ 混合约束参与度和 $B$ 选择约束参与度共同决定，不做随机切块；默认控制在 15--20 bit 附近。\\
+约束保持 mixer & 部分落地 & 当前实现了固定 Hamming weight/交换型的 XY-mixer proxy 候选，用来保持 $B$ 类选择约束；完整 XY mixer 量子线路尚未并入 route7 主循环。\\
+学习指导不只 bit ranking & 部分落地 & 已有可插拔 weights、cluster selector、solver portfolio 和 fixing plan；真正训练 block partition/solver choice 的 GNN/RL 模型仍是下一步。\\
+量子求解器 portfolio & 已落地一半 & 小 block 使用 exact，中 block 使用 learning-guided/annealing，较小目标 block 可走 QAOA；当前最强 B 结果主要来自 portfolio 与 LP repair，不宣称是真实 QPU 结果。\\
+浅层参数现实性 & 已落地 & QAOA 默认使用浅层 $p=1$，把收益放在更好的 block、初态和 cut，而不是堆很深线路。\\
+\bottomrule
+\end{tabular}
+\end{center}
+
 \subsection{Block selector}
 
 变量打分综合四类特征：
@@ -172,6 +192,14 @@ Output: best feasible solution, objective, block trace, warm-start and cut repor
 \end{itemize}
 
 选出最高分 seed 后，算法贪心加入与当前 block 耦合最强的邻居。这样每次量子/退火 backend 处理的是一个局部强耦合子图，而不是稀释在全局大图里。
+
+上式中的 $0.30,0.35,0.20,0.15$ 是提交前的结构启发式权重，不应被理解为理论最优常数。代码中已将其抽象为 \texttt{MiqpBlockScoreWeights}，并新增 \texttt{greedy} 与 \texttt{affinity\_cluster} 两种 selector 策略。我们用 \texttt{scripts/miqp\_selector\_ablation.py} 做了小规模消融：样例 A 对权重不敏感，所有配置均能达到最优；样例 B 在短预算下 balanced-greedy 的 gap 为 $12.04\%$，default-greedy 为 $15.68\%$，default-cluster 为 $15.91\%$。这说明“聚类一定更优”目前无法断言；更合理的结论是，block selector 需要被实验和历史标签校准，而不是主观固定一组权重。
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.92\linewidth]{selector_ablation_gap.png}
+  \caption{block selector 权重与聚类策略消融。该图用于回答权重是否主观、聚类是否更优的问题：现有两个样例上，均衡权重在样例 B 的短预算搜索中最好，但聚类策略没有稳定占优。}
+\end{figure}
 
 \subsection{Warm-start 与变量固定}
 
@@ -191,10 +219,13 @@ m=c+\operatorname{diag}(Q)+2Q\bar{x},
 当前路线 7 支持三类 backend 思想：
 
 \begin{itemize}
-  \item 小规模时精确枚举，用作 correctness baseline。
-  \item 中规模时模拟退火和 learning-guided sampler 生成候选。
-  \item block QUBO 可转 Ising，进入 QAOA 或量子退火 backend。由于提交环境不保证真实 QPU，本提交默认使用可复现 backend，但保留 QAOA/Aer GPU 接口。
+  \item 小规模 block 使用 exact solver，保证局部候选质量。
+  \item 中规模 block 使用 simulated annealing 与 learning-guided sampler 生成候选。
+  \item 较小且耦合较密的目标 block 可转 Ising 后进入 QAOA backend；候选再由 $B$ 约束 repair 和连续 LP 统一验证。
+  \item 对 cardinality/选择类 $B$ 约束，当前实现了交换型 XY-mixer proxy 候选，优先尝试“drop-one/add-one”的 Hamming weight 保持移动。
 \end{itemize}
+
+因此，当前结果是\textbf{混合量子启发/量子可插拔算法}：block-QAOA 基线确实运行了 10-qubit 模拟线路，route7 主算法也具备 QAOA backend 接口；但样例 B 的最强提交结果主要来自 MIQP-aware block portfolio、修复和 LP 子问题，并不是在真实 QPU 上一次性求出的结果。主办方堡垒机中的 \texttt{qiskit} 容器和沐曦 GPU 可以用于两件事：一是用 Qiskit Aer GPU 加速小 block QAOA shots；二是训练 GNN/RL selector 或 bit probability 模型。它不适合把 $n=80$ 的全局问题直接做大 statevector 模拟。
 
 \section{量子线路实现}
 
@@ -214,6 +245,8 @@ H_C=\alpha+\sum_i h_iZ_i+\sum_{i<j}J_{ij}Z_iZ_j.
 e^{-i\gamma_\ell H_C}
 |+\rangle^{\otimes |S|}.
 \]
+
+这里的 $p$ 是 QAOA ansatz 深度，也就是 cost Hamiltonian 与 mixer 交替的层数。它由 block qubit 数、$RZZ$ 耦合边数、模拟器/GPU 预算和真实硬件噪声共同决定，而不是越大越好。提交版本使用 $p=1$ 作为可复现浅层基线；对 15--20 bit block，增加 $p$ 会显著增加参数搜索和双比特门深度，收益需要通过验证集或 ablation 决定。若后续使用沐曦 GPU 跑 Aer，可以在小 block 上对 $p\in\{1,2,3\}$ 做预算受限调参。
 
 线路层级如下：
 
@@ -238,7 +271,7 @@ e^{-i\gamma_\ell H_C}
 
 \section{实验结果与展示}
 
-本地与远端 \texttt{qiskit} 容器均已通过完整测试。为了避免“只展示最好算法”的选择偏差，我们额外建立了横向 baseline study。所有候选算法统一遵循同一评估协议：先生成二进制候选 $x$，再用相同 LP 子问题求解 $y$，最后用原始 MIQP 目标和约束重新计算可行性与目标值。这样可以公平比较不同搜索策略，而不是比较不同后处理器。
+本地环境与堡垒机 \texttt{jump.zs.shaipower.online} 中的 \texttt{qiskit} 容器均作为目标运行环境；提交说明中的 GPU 资源按沐曦 64GB 卡环境描述。当前表格的核心数值来自可复现 CPU/LP/采样流程，block-QAOA 基线为本地模拟量子线路；沐曦 GPU 更适合后续加速 Aer shots 与训练 selector，而不是直接模拟全局 80-qubit 问题。为了避免“只展示最好算法”的选择偏差，我们额外建立了横向 baseline study。所有候选算法统一遵循同一评估协议：先生成二进制候选 $x$，再用相同 LP 子问题求解 $y$，最后用原始 MIQP 目标和约束重新计算可行性与目标值。这样可以公平比较不同搜索策略，而不是比较不同后处理器。
 
 当前提交目录中保留了两个样例的 route7 JSON 和 NPZ 输出：
 
@@ -275,7 +308,7 @@ B & 80 & 20 & 20 & 4 & 577.780995 & 610.266639 & 可行，gap 5.32\% \\
 \end{tabular}
 \end{center}
 
-样例 A 因为二进制变量数为 15，路线自动进入 exact-binary-plus-continuous-LP 模式。样例 B 进入 MIQP-aware block heuristic 模式，最佳 seed 为 11，候选评估数为 344。B 的结果没有达到官方最优，但已经给出稳定可行解和完整诊断，包括 block history、warm-start probability、continuous LP 解、cut advice 与约束报告。
+样例 A 因为二进制变量数为 15，路线自动进入 exact-binary-plus-continuous-LP 模式。样例 B 进入 MIQP-aware block heuristic 模式，最佳 seed 为 11，候选评估数为 436，端到端 runtime 约 $118.03$ 秒。B 的结果没有达到官方最优，但已经给出稳定可行解和完整诊断，包括 block history、solver portfolio、warm-start probability、continuous LP 解、cut advice 与约束报告。
 
 源码包中还提供结果汇总脚本：
 
@@ -294,33 +327,35 @@ python scripts/render_miqp_results.py submission/results/miqp_sample_A_route7.js
   \item \textbf{marginal\_greedy\_lp}：按二进制边际收益贪心加入变量，并检查 $Bx\le b'$。
   \item \textbf{structural\_warm\_start\_lp}：使用 MIQP 结构 warm-start 生成单个候选。
   \item \textbf{random\_repair\_lp}：随机二进制候选，经 $B$ 约束修复后求 LP。
+  \item \textbf{genetic\_repair\_lp}：遗传算法在二进制空间交叉、变异，经 $B$ 约束修复后求 LP。
+  \item \textbf{binary\_pso\_repair\_lp}：二进制粒子群搜索，经 $B$ 约束修复后求 LP。
   \item \textbf{exact\_binary\_lp}：小规模二进制精确枚举；样例 B 因 $2^{80}$ 不可承受而跳过。
-  \item \textbf{global/block SA}：模拟退火候选生成。
-  \item \textbf{global/block learning-guided}：学习引导排序和局部改进候选生成。
+  \item \textbf{global/block SA}：模拟退火候选生成；样例 B 的 global 版本因 $n=80$ 超过 32-bit 公平资源上限而跳过，不是画图缺失。
+  \item \textbf{global/block learning-guided}：学习引导排序和局部改进候选生成；global 版本同样受 32-bit 上限约束。
   \item \textbf{block\_qaoa\_lp}：目标函数 block QAOA 生成候选，再用经典 repair 和 LP 验证。
   \item \textbf{miqp\_aware\_route7}：本文提出的主算法。
 \end{itemize}
 
 \begin{center}
 \small
-\begin{tabular}{llrrrrr}
+\begin{tabular}{lrrlr}
 \toprule
-样例 & 方法 & 目标值 & Gap(\%) & 可行 & 搜索 bit / qubit & 候选评估 \\
+模型（样例） & 目标值 & Gap(\%) & 资源占用 & 耗时(ms) \\
 \midrule
-A & random\_repair\_lp & 105.090577 & 0.946 & 是 & 15 / 0 & 96 \\
-A & block\_qaoa\_lp & 105.090577 & 0.946 & 是 & 10 / 10 & 137 \\
-A & exact\_binary\_lp & 106.094636 & 0.000 & 是 & 15 / 0 & 1152 \\
-A & \textbf{miqp\_aware\_route7} & \textbf{106.094636} & \textbf{0.000} & 是 & 12 / 0 & 1152 \\
+A random\_repair\_lp & 105.090577 & 0.946 & 15 bits, 96 evals & 241 \\
+A genetic\_repair\_lp & 106.094636 & 0.000 & 15 bits, 61 evals & 202 \\
+A block\_qaoa\_lp & 105.090577 & 0.946 & 10 qubits, 137 shots/evals & 4796 \\
+A \textbf{miqp\_aware\_route7} & \textbf{106.094636} & \textbf{0.000} & 12-bit block, 1152 evals & 2087 \\
 \midrule
-B & marginal\_greedy\_lp & 544.475466 & 10.781 & 是 & 80 / 0 & 80 \\
-B & block\_sa\_lp & 492.115433 & 19.361 & 是 & 26 / 0 & 44 \\
-B & block\_qaoa\_lp & 488.070768 & 20.023 & 是 & 10 / 10 & 146 \\
-B & \textbf{miqp\_aware\_route7} & \textbf{577.780995} & \textbf{5.323} & 是 & 20 / 0 & 344 \\
+B marginal\_greedy\_lp & 544.475466 & 10.781 & 80 bits, 80 evals & 184 \\
+B genetic\_repair\_lp & 565.761894 & 7.293 & 80 bits, 146 evals & 1126 \\
+B block\_qaoa\_lp & 488.070768 & 20.023 & 10 qubits, 146 shots/evals & 5110 \\
+B \textbf{miqp\_aware\_route7} & \textbf{577.780995} & \textbf{5.323} & 20-bit block, 436 evals & 118030 \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-这里的 gap 按最大化问题计算为 $(\text{official}-\text{objective})/|\text{official}|\times100\%$。route7 行读取已有最强结果，因此横向 study 的运行时间图不把它作为计时点，避免把缓存结果误画成零耗时；但目标值、gap、搜索 bit 和候选评估数仍然纳入比较。
+这里的 gap 按最大化问题计算为 $(\text{official}-\text{objective})/|\text{official}|\times100\%$。表中耗时为本地 wall-clock 或 route7 JSON 中记录的端到端 runtime；因此后续质量-时间图已经包含最强 route7 点。样例 B 的 \texttt{global\_binary\_sa\_lp} 和 \texttt{global\_learning\_guided\_lp} 被跳过，是因为 $n=80$ 超过脚本设置的 32-bit 全局 QUBO 上限，避免把不可比较的全局大 QUBO 强行纳入图中。
 
 \begin{figure}[htbp]
   \centering
@@ -337,13 +372,13 @@ B & \textbf{miqp\_aware\_route7} & \textbf{577.780995} & \textbf{5.323} & 是 & 
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=0.90\linewidth]{miqp_sample_B_gap_runtime_frontier.png}
-  \caption{样例 B 的质量-时间前沿。该图只展示本次 study 中实际计时的基线；route7 读取缓存结果，因此不放入时间前沿，避免误导。}
+  \caption{样例 B 的质量-时间前沿。该图包含 route7 JSON 中记录的端到端 runtime，因此可以看到 proposed route7 是当前 gap 最低但耗时最高的点；后续优化应重点降低 route7 的候选评估和 LP 调用成本。}
 \end{figure}
 
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=0.90\linewidth]{miqp_sample_B_resource_profile.png}
-  \caption{样例 B 资源画像。全局精确枚举和全局二进制 QUBO 在 $n=80$ 时被标注跳过；block-QAOA 控制在 10 qubit，而 proposed route7 使用 20-bit block 和 344 次候选评估获得更强目标值。}
+  \caption{样例 B 资源画像。全局精确枚举和全局二进制 QUBO 在 $n=80$ 时被标注跳过；block-QAOA 控制在 10 qubit，而 proposed route7 使用 20-bit block 和 436 次候选评估获得更强目标值。}
 \end{figure}
 
 \begin{figure}[htbp]
@@ -351,7 +386,7 @@ B & \textbf{miqp\_aware\_route7} & \textbf{577.780995} & \textbf{5.323} & 是 & 
   \includegraphics[width=0.48\linewidth]{miqp_sample_B_block_coupling_heatmap.png}
   \hfill
   \includegraphics[width=0.48\linewidth]{miqp_sample_B_warm_start_probabilities.png}
-  \caption{样例 B 的结构可视化。左图为 selector 选中 block 的 $Q$ 耦合热力图，右图为 warm-start advisor 输出的 $P(x_i=1)$。这两张图说明路线 7 的决策不是黑箱随机搜索，而是由二次耦合和约束结构驱动。}
+  \caption{样例 B 的结构可视化。左图是 selector 选中 20 个二进制变量后形成的 $20\times20$ 子矩阵 $Q_{SS}$，并不是连续变量耦合图；右图为 warm-start advisor 输出的 $P(x_i=1)$。多数概率高于 0.5 表明该线性 warm-start 尚未严格校准，当前更适合作为 ranking/fixing 信号，而不是概率意义上的置信度。}
 \end{figure}
 
 \section{创新点描述}
@@ -363,6 +398,9 @@ B & \textbf{miqp\_aware\_route7} & \textbf{577.780995} & \textbf{5.323} & 是 & 
   \item \textbf{LP 对偶 cut advice。} 固定 $x$ 后不只求一个 $y$，还提取连续子问题的对偶信息，为下一轮 block 搜索提供结构信号。
   \item \textbf{工程可复现。} 所有结果通过 CLI 输出 JSON/NPZ，测试覆盖 loader、block selector、warm-start、cut advisor 与七条路线集成。
 \end{enumerate}
+
+\paragraph{GNN/RL 替代思路}
+这里说的“后续替换为 GNN/RL”不是泛泛加深模型。GNN 版本会把变量看成节点，把 $Q_{ij}$、同约束参与度、$A/G/B$ 行关联看成边或超边特征，输出三类信号：$P(x_i=1)$、变量进入 block 的概率、变量固定/释放建议。RL 版本则把一次 route7 迭代看成 action：选择哪个 block、调用 exact/annealing/QAOA 哪个 solver、是否应用 cut advice、是否做 destroy/repair；reward 用可行目标提升、gap 降低和运行时间惩罚共同定义。今晚已经落地的是接口、数据记录和 ablation；真正训练模型需要更多模拟实例和 exact/annealing 标签。
 
 \section{算法对比分析}
 
@@ -389,7 +427,7 @@ B & \textbf{miqp\_aware\_route7} & \textbf{577.780995} & \textbf{5.323} & 是 & 
 全局精确枚举在 $n=80$ 时不可运行；全局 QUBO/退火代理也被资源上限跳过。block-QAOA 使用 10 qubit 形成量子线路，route7 的主搜索 block 使用 20 bit，均在近端可控范围内。不同的是 route7 会把 block 结果放回完整 MIQP 中进行 LP 评估和 cut 诊断，因此目标质量更高。
 
 \paragraph{速度}
-本 study 对 baseline 方法做了 wall-clock 计时；route7 的最强结果来自前序复现实验并在本 study 中读取缓存，因此未把它画入质量-时间前沿。正式参赛时建议固定硬件和参数后重新生成完整 runtime profile，包括 route7 end-to-end wall-clock、LP 调用次数、QAOA shots 和 GPU/CPU backend 信息。
+本 study 对 baseline 方法做了 wall-clock 计时，并从 route7 JSON 读取最强结果的端到端 runtime。样例 B 上 route7 约 $118.03$ 秒，明显慢于贪心、GA/PSO 和单 block-QAOA，但 gap 最低；这反映了当前主算法以更多候选评估和 LP 调用换取解质量。正式参赛时建议固定堡垒机硬件和参数后重新生成完整 runtime profile，包括 LP 调用次数、QAOA shots、CPU/GPU backend 和显存占用。
 
 \paragraph{局限性}
 当前版本仍然是比赛提交级研究原型，而不是最终理论完备算法。主要局限包括：B 样例仍有 $5.32\%$ gap；cut advice 目前更多用于诊断，尚未完全闭环进入下一轮 block 打分；block selector 是结构启发式而非训练模型；block-QAOA 使用 objective-only circuit 后接经典 repair，尚未实现完整约束保持 mixer。以上局限同时也是后续提升空间。
@@ -412,9 +450,12 @@ B & \textbf{miqp\_aware\_route7} & \textbf{577.780995} & \textbf{5.323} & 是 & 
 
 \begin{itemize}
   \item \texttt{scripts/miqp\_baseline\_study.py}：横向基线与作图。
+  \item \texttt{scripts/miqp\_selector\_ablation.py}：block selector 权重与聚类策略消融。
+  \item \texttt{results/}：根目录结果副本，便于直接上传和评审查看。
   \item \texttt{submission/baseline\_study/miqp\_baseline\_study.csv}：所有 baseline 数值。
   \item \texttt{submission/baseline\_study/figures/}：论文插图。
   \item \texttt{submission/results/}：route7 样例 JSON/NPZ 输出。
+  \item \texttt{submission/selector\_ablation/}：selector 消融 JSON/CSV/Markdown 与图。
 \end{itemize}
 
 若继续优化，建议优先把今晚准备的 graph-to-probability 管线真正训练起来，并将路线 7 的 block selector 从启发式升级为 MIQP-aware learned selector。这样四张 64GB 沐曦 GPU 可以用于离线生成与训练策略模型，而不是消耗在不可控的大规模 statevector 模拟上。以最高标准看，下一版论文应增加更多隐藏/模拟实例、置信区间、消融实验和真实硬件或 Aer GPU profile；当前版本已经把研究叙事、可视化证据和可复现对比的骨架搭好了。
