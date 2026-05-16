@@ -5,12 +5,12 @@ import type { TaskPayload } from '@/lib/types';
 
 export async function GET() {
   await connectMongo().catch(() => null);
-  return NextResponse.json({ data: listTasks() });
+  return NextResponse.json({ data: await listTasks() });
 }
 
 export async function POST(req: Request) {
   await connectMongo().catch(() => null);
   const body = (await req.json()) as TaskPayload;
-  const task = createTask(body);
+  const task = await createTask(body);
   return NextResponse.json({ data: task });
 }

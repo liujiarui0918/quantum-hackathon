@@ -1,21 +1,18 @@
 export type TaskStatus = 'pending' | 'running' | 'completed';
 
-/** 与表单/文档字段对齐；文档中「最大输出」误写为 minOutput，此处使用 maxOutput */
 export interface TaskPayload {
   name: string;
-  counts: number;
-  period: string;
-  targetNeed: number;
-  backNeed: number;
-  co2Limit: number;
-  minOutput: number;
-  maxOutput: number;
-  changeOimit: number;
-  startAndEndTime: string;
-  co2Counts: number;
-  startCosts: number;
-  endCosts: number;
-  fuelCosts: number;
+  datasetName: string;
+  n: number;
+  p: number;
+  m1: number;
+  m2: number;
+  solver: 'qaoa' | 'annealing' | 'hybrid';
+  maxQubits: number;
+  subQuboSize: number;
+  maxIterations: number;
+  timeLimitSec: number;
+  penaltyLambda: number;
 }
 
 export interface Task extends TaskPayload {
@@ -31,19 +28,40 @@ export interface ValidationItem {
   reason?: string;
 }
 
-export interface UnitResultRow {
-  index: number;
-  totalPowerMw: number;
-  totalCo2Ton: number;
-  totalCostYuan: number;
-  startCostYuan: number;
-  shutdownCostYuan: number;
-  fuelCostYuan: number;
-  series: { t: string; p: number }[];
+export interface IterationResultRow {
+  iter: number;
+  objective: number;
+  bestBound?: number;
+  gapPct?: number;
+  feasible: boolean;
+  usedQubits: number;
+  elapsedSec: number;
+  note?: string;
+}
+
+export interface ArtifactItem {
+  title: string;
+  imageUrl: string;
+  description?: string;
+}
+
+export interface TaskResultSummary {
+  bestObjective: number;
+  bestBound?: number;
+  gapPct?: number;
+  feasible: boolean;
+  constraintViolationCount: number;
+  usedQubits: number;
+  selectedBinaryCount: number;
+  activeContinuousCount: number;
+  totalRuntimeSec: number;
 }
 
 export interface TaskResultPayload {
   task: Task;
   validations: ValidationItem[];
-  units: UnitResultRow[];
+  summary: TaskResultSummary;
+  iterations: IterationResultRow[];
+  artifacts: ArtifactItem[];
+  notes?: string;
 }

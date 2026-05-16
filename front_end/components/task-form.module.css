@@ -58,7 +58,8 @@
 
 @media (max-width: 900px) {
   .row2,
-  .row3 {
+  .row3,
+  .row4 {
     grid-template-columns: 1fr;
   }
 }

@@ -64,8 +64,8 @@
 }
 
 .status[data-status='running'] {
-  border-color: rgba(61, 255, 206, 0.45);
-  color: rgba(61, 255, 206, 0.95);
+  border-color: rgb(255 228 33 / 45%);
+    color: rgb(255 231 3 / 95%);
 }
 
 .status[data-status='completed'] {
