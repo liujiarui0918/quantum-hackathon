@@ -83,6 +83,25 @@ python -m pip install -e ".[dev]"
 python -m pytest -q
 ```
 
+### qiskit 容器复现注意事项
+
+提交源码包已在堡垒机目标机 `qiskit-metax-gpu-18` 的 `qiskit` 容器中从 zip 干净解压复现。实测容器为 Python `3.12.3`，已有 `numpy`、`scipy` 和 `pytest`，但基础镜像可能没有 `unzip`，也可能没有预装 `matplotlib`。
+
+如果容器没有 `unzip`，可用 Python 标准库解压：
+
+```bash
+python -m zipfile -e "混合整数优化问题赛道-平步青云-源代码.zip" /tmp/qh_repro_submit
+cd /tmp/qh_repro_submit
+```
+
+正常执行 `python -m pip install -e ".[dev]"` 会根据 `pyproject.toml` 补齐 `matplotlib`。如果为了快速检查使用了 `--no-deps`，则 A/B 主求解仍可运行；但 baseline 作图和完整测试需要额外执行：
+
+```bash
+python -m pip install matplotlib
+```
+
+本次容器验证结果：`python -m pytest -q` 通过 `56 passed`；重新生成 A/B 样例结果后，A 为 `106.094636140193074`，B 为 `610.266638604722743`，均可行且与官方最优值一致。
+
 ## Environment
 
 | Item | Requirement |
@@ -568,3 +587,13 @@ The final solution PDF should include:
 - innovation points
 - comparison with classical or common quantum baselines
 - reproducibility instructions
+
+Hidden-test convenience runner:
+
+```bash
+mkdir -p data/final_tests
+# Put miqp_test_1.npz ... miqp_test_5.npz under data/final_tests/
+python scripts/run_miqp_hidden_demo.py --input-dir data/final_tests --output-dir results/hidden_demo
+```
+
+Use `--dry-run` to inspect the size-aware plan without solving. The runner maps the announced hidden-test sizes to exact, safe, or deep route7++ profiles and writes per-instance best JSON/NPZ outputs plus `hidden_demo_summary.md`.

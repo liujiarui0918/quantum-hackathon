@@ -5,7 +5,7 @@ from tempfile import TemporaryDirectory
 import numpy as np
 
 from quantum_hackathon.miqp import load_miqp_npz
-from scripts import miqp_auto_sota, miqp_synthetic_suite, miqp_train_block_model
+from scripts import miqp_auto_sota, miqp_synthetic_suite, miqp_train_block_model, run_miqp_hidden_demo
 
 
 def test_miqp_synthetic_suite_writes_loadable_npz_instances():
@@ -97,3 +97,28 @@ def test_miqp_auto_sota_profiles_are_non_neural_by_default():
     assert len(deep) > len(quick)
     assert all(not config.use_learned for config in deep)
     assert any(config.post_polish_rounds > 0 for config in deep)
+
+
+def test_hidden_demo_dry_run_writes_size_aware_plan():
+    with TemporaryDirectory(dir=Path.cwd()) as temp_dir:
+        root = Path(temp_dir)
+        output_dir = root / "hidden_demo"
+        exit_code = run_miqp_hidden_demo.main(
+            [
+                "--input-dir",
+                str(root / "missing_inputs"),
+                "--output-dir",
+                str(output_dir),
+                "--dry-run",
+            ]
+        )
+
+        assert exit_code == 0
+        summary = json.loads((output_dir / "hidden_demo_summary.json").read_text(encoding="utf-8"))
+        rows = summary["rows"]
+        assert [row["filename"] for row in rows] == [f"miqp_test_{index}.npz" for index in range(1, 6)]
+        assert rows[0]["plan"]["exact_binary_limit"] == 20
+        assert rows[0]["plan"]["profile"] == "quick"
+        assert rows[3]["plan"]["profile"] == "deep"
+        assert rows[4]["plan"]["max_lp_evals"] == 2200
+        assert all(row["status"] == "missing" for row in rows)

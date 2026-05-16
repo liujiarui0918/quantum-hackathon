@@ -17,6 +17,31 @@
 python -m pip install -e ".[dev]"
 ```
 
+## 堡垒机 / qiskit 容器复现注意事项
+
+本源码包已在题目堡垒机的 `qiskit` Docker 容器中从压缩包干净解压复现。实测环境为 Python `3.12.3`，容器内已有 `numpy`、`scipy` 和 `pytest`，但基础镜像可能没有 `unzip`，也可能没有预装 `matplotlib`。
+
+如果容器中没有 `unzip`，可直接用 Python 标准库解压：
+
+```bash
+python -m zipfile -e "混合整数优化问题赛道-平步青云-源代码.zip" /tmp/qh_repro_submit
+cd /tmp/qh_repro_submit
+```
+
+如果只运行 A/B 样例主求解流程，核心依赖是 `numpy` 与 `scipy`；如果要运行横向 baseline 作图或完整测试，请使用正常安装命令让 `pip` 补齐 `matplotlib`：
+
+```bash
+python -m pip install -e ".[dev]"
+```
+
+若评审环境中使用了 `--no-deps` 安装，且随后运行 `scripts/miqp_baseline_study.py` 或完整测试时提示缺少 `matplotlib`，执行：
+
+```bash
+python -m pip install matplotlib
+```
+
+本次堡垒机容器复现结果：`python -m pytest -q` 通过 `56 passed`；重新运行 A/B 样例后，A 得到 `106.094636140193074`，B 得到 `610.266638604722743`，二者均可行且与官方最优值一致。
+
 ## 一键测试
 
 ```bash
@@ -130,6 +155,33 @@ python scripts/miqp_auto_sota.py \
 
 需要更强但更耗时的赛马时，将 `--profile safe` 改为 `--profile deep`。默认主线仍为非神经 route7++。
 
+五个官方隐藏测试文件到达后的推荐入口：
+
+```bash
+mkdir -p data/final_tests
+# 将 miqp_test_1.npz ... miqp_test_5.npz 放入 data/final_tests/
+python scripts/run_miqp_hidden_demo.py \
+  --input-dir data/final_tests \
+  --output-dir results/hidden_demo
+```
+
+该脚本按规模自动选择参数：
+
+- `miqp_test_1.npz`：`n=15,p=5,m1=5,m2=1`，直接精确枚举二进制部分并求 LP。
+- `miqp_test_2.npz`：`n=40,p=10,m1=10,m2=2`，启用 subQUBO 分块与多 seed。
+- `miqp_test_3.npz`：`n=80,p=20,m1=20,m2=4`，使用 route7++ block pool，避免随机分块。
+- `miqp_test_4.npz`：`n=120,p=30,m1=30,m2=6`，使用 deep profile 和 affinity-cluster。
+- `miqp_test_5.npz`：`n=150,p=50,m1=50,m2=10`，扩大 seed/config portfolio，并用 LP 预算控时。
+
+预览计划但不求解：
+
+```bash
+python scripts/run_miqp_hidden_demo.py \
+  --input-dir data/final_tests \
+  --output-dir results/hidden_demo \
+  --dry-run
+```
+
 route7++ 训练数据与非神经线性 block scorer（可选，不作为最终默认主线）：
 
 ```bash
@@ -174,6 +226,7 @@ scripts/
   render_miqp_results.py  结果表格渲染脚本
   miqp_baseline_study.py  横向基线、资源画像与论文插图生成脚本
   miqp_selector_ablation.py  block selector 权重与聚类策略消融脚本
+  run_miqp_hidden_demo.py  五个官方隐藏测试的规模感知一键运行入口
   miqp_trace_blocks.py  route7++ block trace/训练数据采集
   miqp_synthetic_suite.py  MIQP-like synthetic .npz 生成器
   miqp_train_block_model.py  非神经线性 block scorer 训练
