@@ -5,7 +5,7 @@ from tempfile import TemporaryDirectory
 import numpy as np
 
 from quantum_hackathon.miqp import load_miqp_npz
-from scripts import miqp_synthetic_suite, miqp_train_block_model
+from scripts import miqp_auto_sota, miqp_synthetic_suite, miqp_train_block_model
 
 
 def test_miqp_synthetic_suite_writes_loadable_npz_instances():
@@ -87,3 +87,13 @@ def test_miqp_train_block_model_fits_trace_jsonl():
         assert len(model["weights"]) == len(miqp_train_block_model.BLOCK_SCORE_FEATURE_NAMES)
         summary = json.loads((root / "summary.json").read_text(encoding="utf-8"))
         assert summary["model_scope"] == "non_neural_linear_ranker"
+
+
+def test_miqp_auto_sota_profiles_are_non_neural_by_default():
+    quick = miqp_auto_sota._configs(False, False, "quick")
+    deep = miqp_auto_sota._configs(False, False, "deep")
+
+    assert len(quick) == 2
+    assert len(deep) > len(quick)
+    assert all(not config.use_learned for config in deep)
+    assert any(config.post_polish_rounds > 0 for config in deep)

@@ -611,6 +611,9 @@ class MiqpAwareRoute7Solver:
         max_lp_evals: int | None = None,
         time_limit_sec: float | None = None,
         learned_block_scorer: MiqpLearnedBlockScorer | None = None,
+        augment_repaired_candidates: bool = True,
+        post_polish_rounds: int = 0,
+        polish_candidate_limit: int = 64,
     ):
         self.block_selector = block_selector or MiqpBlockSelector()
         self.warm_start_advisor = warm_start_advisor or MiqpWarmStartAdvisor()
@@ -627,6 +630,9 @@ class MiqpAwareRoute7Solver:
         self.max_lp_evals = max_lp_evals
         self.time_limit_sec = time_limit_sec
         self.learned_block_scorer = learned_block_scorer
+        self.augment_repaired_candidates = augment_repaired_candidates
+        self.post_polish_rounds = max(0, post_polish_rounds)
+        self.polish_candidate_limit = max(1, polish_candidate_limit)
 
     def solve(self, instance: MiqpInstance) -> MiqpAwareRoute7Result:
         block = self.block_selector.select(instance)
@@ -660,6 +666,9 @@ class MiqpAwareRoute7Solver:
                 "max_lp_evals": self.max_lp_evals,
                 "time_limit_sec": self.time_limit_sec,
                 "learned_block_model": self.learned_block_scorer.name if self.learned_block_scorer is not None else None,
+                "augment_repaired_candidates": self.augment_repaired_candidates,
+                "post_polish_rounds": self.post_polish_rounds,
+                "polish_candidate_limit": self.polish_candidate_limit,
                 "block_history": block_history,
                 "trace_records": block_history,
             },
@@ -717,6 +726,13 @@ class MiqpAwareRoute7Solver:
         best_solution: MiqpSolution | None = None
         best_continuous: ContinuousSubproblemResult | None = None
         incumbent = np.asarray(warm_start.repaired_assignment, dtype=int)
+        if self.augment_repaired_candidates:
+            incumbent = augment_binary_constraints(
+                instance,
+                incumbent,
+                warm_start.probabilities,
+                max_additions=instance.n,
+            )
         evaluated = 0
         candidate_checks = 0
         visited: set[int] = set()
@@ -813,11 +829,27 @@ class MiqpAwareRoute7Solver:
                         *_single_flip_candidates(instance, pool_block, base, pool_warm_start.probabilities),
                     ]
                 )
-                candidates = [
-                    repair_binary_constraints(instance, candidate, pool_warm_start.probabilities)
-                    for candidate in candidates
-                ]
-                candidates = _dedupe_x_candidates(candidates)[: max(1, budget)]
+                repaired_candidates = []
+                for candidate in candidates:
+                    repaired = repair_binary_constraints(instance, candidate, pool_warm_start.probabilities)
+                    repaired_candidates.append(repaired)
+                    if self.augment_repaired_candidates:
+                        repaired_candidates.append(
+                            augment_binary_constraints(
+                                instance,
+                                repaired,
+                                pool_warm_start.probabilities,
+                                max_additions=max(2, len(pool_block.binary_indices) // 3),
+                            )
+                        )
+                candidates = _rank_candidates_by_binary_surrogate(
+                    instance,
+                    base,
+                    _dedupe_x_candidates(repaired_candidates),
+                    pool_warm_start.probabilities,
+                    current_cut=current_cut,
+                    priority=(base,),
+                )[: max(1, budget)]
                 block_best: MiqpSolution | None = None
                 before_hits = cache.hits
                 before_misses = cache.misses
@@ -905,11 +937,86 @@ class MiqpAwareRoute7Solver:
             if not cache_hit:
                 evaluated += 1
             best_solution = _solution_from_continuous(instance, x, best_continuous, status="heuristic_no_feasible_candidate")
+        polish_records: list[dict[str, Any]] = []
+        if best_solution is not None and best_continuous is not None and self.post_polish_rounds > 0:
+            for polish_round in range(self.post_polish_rounds):
+                if self.max_lp_evals is not None and evaluated >= self.max_lp_evals:
+                    break
+                if _time_limit_reached(started, self.time_limit_sec):
+                    break
+                round_started = perf_counter()
+                polish_plan = self.warm_start_advisor.plan(instance, block=current_block, incumbent_x=best_solution.x)
+                raw_polish = _polish_candidates(
+                    instance,
+                    best_solution.x,
+                    polish_plan.probabilities,
+                    current_cut=current_cut,
+                    max_candidates=max(self.polish_candidate_limit * 2, self.polish_candidate_limit),
+                )
+                repaired_polish = []
+                for candidate in raw_polish:
+                    repaired = repair_binary_constraints(instance, candidate, polish_plan.probabilities)
+                    repaired_polish.append(repaired)
+                    if self.augment_repaired_candidates:
+                        repaired_polish.append(
+                            augment_binary_constraints(
+                                instance,
+                                repaired,
+                                polish_plan.probabilities,
+                                max_additions=max(4, self.block_selector.max_block_size // 2),
+                            )
+                        )
+                polish_candidates = _rank_candidates_by_binary_surrogate(
+                    instance,
+                    best_solution.x,
+                    _dedupe_x_candidates(repaired_polish),
+                    polish_plan.probabilities,
+                    current_cut=current_cut,
+                    priority=(best_solution.x,),
+                )[: self.polish_candidate_limit]
+                round_lp_calls = 0
+                round_cache_hits = 0
+                round_best = best_solution
+                round_best_continuous = best_continuous
+                for candidate_x in polish_candidates:
+                    if self.max_lp_evals is not None and evaluated >= self.max_lp_evals:
+                        break
+                    if _time_limit_reached(started, self.time_limit_sec):
+                        break
+                    candidate_checks += 1
+                    solution, continuous, cache_hit = cache.evaluate(instance, self.cut_advisor, candidate_x)
+                    if cache_hit:
+                        round_cache_hits += 1
+                    else:
+                        evaluated += 1
+                        round_lp_calls += 1
+                    if solution.feasible and solution.objective > round_best.objective + 1e-9:
+                        round_best = solution
+                        round_best_continuous = continuous
+                improved = round_best.objective > best_solution.objective + 1e-9
+                if improved:
+                    best_solution = round_best
+                    best_continuous = round_best_continuous
+                    current_cut = self.cut_advisor.advise_cut(instance, best_solution.x, best_continuous)
+                polish_records.append(
+                    {
+                        "round": polish_round,
+                        "candidate_count": len(polish_candidates),
+                        "lp_calls": round_lp_calls,
+                        "lp_cache_hits": round_cache_hits,
+                        "improved": improved,
+                        "best_objective": best_solution.objective,
+                        "runtime_ms": round((perf_counter() - round_started) * 1000.0, 3),
+                    }
+                )
+                if not improved:
+                    break
         final_cut = self.cut_advisor.advise_cut(instance, best_solution.x, best_continuous)
         for record in history:
             record["total_lp_calls"] = evaluated
             record["total_lp_cache_hits"] = cache.hits
             record["total_candidate_checks"] = candidate_checks
+            record["polish"] = polish_records
         return (
             best_solution,
             best_continuous,
@@ -979,6 +1086,46 @@ def repair_binary_constraints(
             drop = min(active, key=lambda index: (confidence.get(index, 0.5), instance.c[index], -index))
             repaired[drop] = 0
     return repaired
+
+
+def augment_binary_constraints(
+    instance: MiqpInstance,
+    x: np.ndarray,
+    probabilities: Iterable[BitProbability],
+    *,
+    max_additions: int = 8,
+) -> np.ndarray:
+    """Greedily add high-value inactive bits while preserving Bx <= b'."""
+    augmented = np.asarray(x, dtype=int).copy()
+    if max_additions <= 0:
+        return augmented
+    probability = {item.index: item.probability_one for item in probabilities}
+    additions = 0
+    while additions < max_additions:
+        inactive = [index for index in range(instance.n) if augmented[index] == 0]
+        if not inactive:
+            break
+        marginal = instance.c + np.diag(instance.Q) + 2.0 * (instance.Q @ augmented.astype(float))
+        feasible_adds = []
+        for index in inactive:
+            candidate = augmented.copy()
+            candidate[index] = 1
+            if not _binary_constraints_feasible(instance, candidate):
+                continue
+            score = (
+                float(marginal[index])
+                + 0.10 * abs(float(marginal[index]))
+                + 0.35 * (probability.get(index, 0.5) - 0.5)
+            )
+            feasible_adds.append((score, float(marginal[index]), probability.get(index, 0.5), -index, index))
+        if not feasible_adds:
+            break
+        best_score, _best_marginal, _best_probability, _neg_index, best_index = max(feasible_adds)
+        if best_score <= 1e-10:
+            break
+        augmented[best_index] = 1
+        additions += 1
+    return augmented
 
 
 def _select_route7pp_block_pool(
@@ -1550,6 +1697,101 @@ def _dedupe_x_candidates(candidates: Iterable[np.ndarray]) -> list[np.ndarray]:
         seen.add(key)
         deduped.append(np.asarray(key, dtype=int))
     return deduped
+
+
+def _rank_candidates_by_binary_surrogate(
+    instance: MiqpInstance,
+    base_x: np.ndarray,
+    candidates: Iterable[np.ndarray],
+    probabilities: Iterable[BitProbability],
+    *,
+    current_cut: MiqpCutAdvice | None,
+    priority: Iterable[np.ndarray] = (),
+) -> list[np.ndarray]:
+    deduped = _dedupe_x_candidates(candidates)
+    priority_keys = {tuple(int(value) for value in candidate.tolist()) for candidate in priority}
+    probability = {item.index: item.probability_one for item in probabilities}
+    base = np.asarray(base_x, dtype=int)
+    base_binary = instance.binary_objective(base)
+    cut_coefficients = (
+        np.asarray(current_cut.x_coefficients, dtype=float)
+        if current_cut is not None and len(current_cut.x_coefficients) == instance.n
+        else np.zeros(instance.n)
+    )
+
+    def score(candidate: np.ndarray) -> tuple[int, float, float, int]:
+        candidate = np.asarray(candidate, dtype=int)
+        key = tuple(int(value) for value in candidate.tolist())
+        delta = candidate - base
+        binary_gain = instance.binary_objective(candidate) - base_binary
+        probability_alignment = sum(
+            float(delta[index]) * (probability.get(index, 0.5) - 0.5)
+            for index in np.flatnonzero(delta)
+        )
+        cut_alignment = float(cut_coefficients @ delta)
+        hamming = int(np.sum(np.abs(delta)))
+        total = float(binary_gain + 0.35 * probability_alignment + 0.05 * cut_alignment - 0.002 * hamming)
+        return (1 if key in priority_keys else 0, total, -float(hamming), -sum(index for index in np.flatnonzero(delta)))
+
+    return sorted(deduped, key=score, reverse=True)
+
+
+def _polish_candidates(
+    instance: MiqpInstance,
+    base_x: np.ndarray,
+    probabilities: tuple[BitProbability, ...],
+    *,
+    current_cut: MiqpCutAdvice | None,
+    max_candidates: int,
+) -> list[np.ndarray]:
+    if max_candidates <= 0:
+        return []
+    base = np.asarray(base_x, dtype=int)
+    probability = {item.index: item.probability_one for item in probabilities}
+    marginal = instance.c + np.diag(instance.Q) + 2.0 * (instance.Q @ base.astype(float))
+    cut_coefficients = (
+        np.asarray(current_cut.x_coefficients, dtype=float)
+        if current_cut is not None and len(current_cut.x_coefficients) == instance.n
+        else np.zeros(instance.n)
+    )
+
+    def add_score(index: int) -> float:
+        return float(marginal[index] + 0.20 * cut_coefficients[index] + 0.35 * (probability.get(index, 0.5) - 0.5))
+
+    def drop_score(index: int) -> float:
+        return float(-marginal[index] - 0.20 * cut_coefficients[index] + 0.35 * (0.5 - probability.get(index, 0.5)))
+
+    active = sorted(np.flatnonzero(base == 1).astype(int).tolist(), key=drop_score, reverse=True)[:16]
+    inactive = sorted(np.flatnonzero(base == 0).astype(int).tolist(), key=add_score, reverse=True)[:16]
+    candidates: list[np.ndarray] = [base]
+
+    for index in inactive[: min(16, len(inactive))]:
+        candidate = base.copy()
+        candidate[index] = 1
+        candidates.append(candidate)
+    for index in active[: min(16, len(active))]:
+        candidate = base.copy()
+        candidate[index] = 0
+        candidates.append(candidate)
+    for drop in active[:10]:
+        for add in inactive[:10]:
+            candidate = base.copy()
+            candidate[drop] = 0
+            candidate[add] = 1
+            candidates.append(candidate)
+            if len(candidates) >= max_candidates:
+                return _dedupe_x_candidates(candidates)
+    for drop_pair in itertools.combinations(active[:8], 2):
+        for add_pair in itertools.combinations(inactive[:8], 2):
+            candidate = base.copy()
+            for index in drop_pair:
+                candidate[index] = 0
+            for index in add_pair:
+                candidate[index] = 1
+            candidates.append(candidate)
+            if len(candidates) >= max_candidates:
+                return _dedupe_x_candidates(candidates)
+    return _dedupe_x_candidates(candidates)
 
 
 def _fixing_plan_from_probabilities(

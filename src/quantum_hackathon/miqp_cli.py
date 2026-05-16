@@ -55,6 +55,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             max_lp_evals=args.max_lp_evals,
             time_limit_sec=args.time_limit_sec,
             learned_block_scorer=learned_block_scorer,
+            augment_repaired_candidates=not args.disable_candidate_augmentation,
+            post_polish_rounds=args.post_polish_rounds,
+            polish_candidate_limit=args.polish_candidate_limit,
         )
         results.append((seed, solver.solve(instance)))
     best_seed, result = max(
@@ -144,6 +147,9 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-lp-evals", type=int, default=None)
     parser.add_argument("--time-limit-sec", type=float, default=None)
     parser.add_argument("--learned-block-model", type=Path, default=None)
+    parser.add_argument("--disable-candidate-augmentation", action="store_true")
+    parser.add_argument("--post-polish-rounds", type=int, default=0)
+    parser.add_argument("--polish-candidate-limit", type=int, default=64)
     parser.add_argument("--trace-jsonl", type=Path, default=None)
     return parser
 

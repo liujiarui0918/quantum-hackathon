@@ -112,9 +112,12 @@ python scripts/miqp_selector_ablation.py \
 python scripts/miqp_auto_sota.py \
   --inputs "path/to/real_1.npz" "path/to/real_2.npz" \
   --output-dir results/auto_sota \
+  --profile safe \
   --seeds 3,7,11,19 \
   --max-lp-evals 800
 ```
+
+需要更强但更耗时的赛马时，将 `--profile safe` 改为 `--profile deep`。默认主线仍为非神经 route7++。
 
 route7++ 训练数据与非神经线性 block scorer（可选，不作为最终默认主线）：
 

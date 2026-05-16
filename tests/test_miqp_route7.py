@@ -12,6 +12,7 @@ from quantum_hackathon.miqp import (
     MiqpBlockSelector,
     MiqpCutAdvisor,
     MiqpWarmStartAdvisor,
+    augment_binary_constraints,
     load_miqp_npz,
 )
 from quantum_hackathon.miqp_cli import main as miqp_main
@@ -68,6 +69,17 @@ def test_miqp_warm_start_repairs_binary_constraints():
 
     assert np.all(instance.B @ repaired <= instance.b_prime + 1e-8)
     assert plan.fixing_plan.ranked_bits
+
+
+def test_miqp_augment_binary_constraints_preserves_binary_feasibility():
+    instance = load_miqp_npz(SAMPLE_DIR / "miqp_sample_B.npz")
+    probabilities = MiqpWarmStartAdvisor().plan(instance).probabilities
+    x = np.zeros(instance.n, dtype=int)
+
+    augmented = augment_binary_constraints(instance, x, probabilities, max_additions=16)
+
+    assert np.sum(augmented) > 0
+    assert np.all(instance.B @ augmented <= instance.b_prime + 1e-8)
 
 
 def test_miqp_cut_advisor_builds_tight_benders_cut_for_reference_solution():
@@ -157,6 +169,8 @@ def test_miqp_route7pp_block_pool_records_trace_and_cache_hits():
         candidate_budget_per_block=12,
         max_lp_evals=20,
         learned_block_scorer=MiqpLearnedBlockScorer(),
+        post_polish_rounds=1,
+        polish_candidate_limit=8,
     ).solve(instance)
 
     history = result.diagnostics["block_history"]
@@ -166,6 +180,7 @@ def test_miqp_route7pp_block_pool_records_trace_and_cache_hits():
     assert history[0]["total_lp_calls"] <= 20
     assert history[0]["total_lp_cache_hits"] >= 1
     assert "score_features" in history[0]["block_pool"][0]
+    assert "polish" in history[0]
 
 
 def test_miqp_cli_writes_route7pp_trace_jsonl():
@@ -194,6 +209,10 @@ def test_miqp_cli_writes_route7pp_trace_jsonl():
                 "16",
                 "--qaoa-max-qubits",
                 "0",
+                "--post-polish-rounds",
+                "1",
+                "--polish-candidate-limit",
+                "8",
                 "--trace-jsonl",
                 str(trace),
             ]

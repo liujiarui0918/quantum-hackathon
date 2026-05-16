@@ -32,6 +32,9 @@ class SotaConfig:
     strategy: str = "greedy"
     qaoa_max_qubits: int = 10
     use_learned: bool = False
+    augment_repaired_candidates: bool = True
+    post_polish_rounds: int = 0
+    polish_candidate_limit: int = 64
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -64,6 +67,9 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--time-limit-sec", type=float, default=None)
     parser.add_argument("--learned-block-model", type=Path, default=None)
     parser.add_argument("--include-qaoa", action="store_true")
+    parser.add_argument("--profile", choices=["quick", "safe", "deep"], default="safe")
+    parser.add_argument("--max-configs", type=int, default=None)
+    parser.add_argument("--disable-candidate-augmentation", action="store_true")
     return parser
 
 
@@ -77,7 +83,7 @@ def _resolve_inputs(paths: Sequence[Path]) -> list[Path]:
     return resolved
 
 
-def _configs(has_learned: bool, include_qaoa: bool) -> list[SotaConfig]:
+def _configs(has_learned: bool, include_qaoa: bool, profile: str = "safe") -> list[SotaConfig]:
     qaoa_cap = 10 if include_qaoa else 0
     configs = [
         SotaConfig(
@@ -126,6 +132,71 @@ def _configs(has_learned: bool, include_qaoa: bool) -> list[SotaConfig]:
             qaoa_max_qubits=qaoa_cap,
         ),
     ]
+    if profile in {"safe", "deep"}:
+        configs.extend(
+            [
+                SotaConfig(
+                    "route7pp_b_heavy",
+                    block_pool=True,
+                    blocks_per_iteration=3,
+                    max_block_size=20,
+                    candidate_limit=224,
+                    candidate_budget_per_block=72,
+                    max_iterations=5,
+                    weights=MiqpBlockScoreWeights(0.18, 0.22, 0.22, 0.38),
+                    qaoa_max_qubits=qaoa_cap,
+                    post_polish_rounds=1,
+                    polish_candidate_limit=48,
+                ),
+                SotaConfig(
+                    "route7pp_q_heavy",
+                    block_pool=True,
+                    blocks_per_iteration=3,
+                    max_block_size=20,
+                    candidate_limit=224,
+                    candidate_budget_per_block=72,
+                    max_iterations=5,
+                    weights=MiqpBlockScoreWeights(0.15, 0.58, 0.17, 0.10),
+                    qaoa_max_qubits=qaoa_cap,
+                    post_polish_rounds=1,
+                    polish_candidate_limit=48,
+                ),
+            ]
+        )
+    if profile == "deep":
+        configs.extend(
+            [
+                SotaConfig(
+                    "route7pp_cluster_deep",
+                    block_pool=True,
+                    blocks_per_iteration=4,
+                    max_block_size=22,
+                    candidate_limit=320,
+                    candidate_budget_per_block=80,
+                    max_iterations=6,
+                    weights=MiqpBlockScoreWeights(0.22, 0.42, 0.20, 0.16),
+                    strategy="affinity_cluster",
+                    qaoa_max_qubits=qaoa_cap,
+                    post_polish_rounds=2,
+                    polish_candidate_limit=96,
+                ),
+                SotaConfig(
+                    "route7pp_large_block_polish",
+                    block_pool=True,
+                    blocks_per_iteration=4,
+                    max_block_size=24,
+                    candidate_limit=384,
+                    candidate_budget_per_block=96,
+                    max_iterations=6,
+                    weights=MiqpBlockScoreWeights(0.20, 0.35, 0.20, 0.25),
+                    qaoa_max_qubits=qaoa_cap,
+                    post_polish_rounds=2,
+                    polish_candidate_limit=128,
+                ),
+            ]
+        )
+    if profile == "quick":
+        configs = configs[:2]
     if has_learned:
         configs.append(
             SotaConfig(
@@ -139,6 +210,7 @@ def _configs(has_learned: bool, include_qaoa: bool) -> list[SotaConfig]:
                 weights=MiqpBlockScoreWeights(0.25, 0.25, 0.25, 0.25),
                 qaoa_max_qubits=qaoa_cap,
                 use_learned=True,
+                post_polish_rounds=1,
             )
         )
     return configs
@@ -151,7 +223,10 @@ def _run_instance(
 ) -> tuple[list[dict], tuple[dict, object]]:
     rows = []
     best_pair: tuple[dict, object] | None = None
-    for config in _configs(scorer is not None, args.include_qaoa):
+    configs = _configs(scorer is not None, args.include_qaoa, args.profile)
+    if args.max_configs is not None:
+        configs = configs[: max(1, args.max_configs)]
+    for config in configs:
         for seed in _parse_seeds(args.seeds):
             started = perf_counter()
             solver = MiqpAwareRoute7Solver(
@@ -172,6 +247,10 @@ def _run_instance(
                 time_limit_sec=args.time_limit_sec,
                 qaoa_max_qubits=config.qaoa_max_qubits,
                 learned_block_scorer=scorer if config.use_learned else None,
+                augment_repaired_candidates=config.augment_repaired_candidates
+                and not args.disable_candidate_augmentation,
+                post_polish_rounds=config.post_polish_rounds,
+                polish_candidate_limit=config.polish_candidate_limit,
             )
             result = solver.solve(instance)
             runtime_ms = (perf_counter() - started) * 1000.0
@@ -189,7 +268,17 @@ def _run_instance(
                 "lp_calls": result.diagnostics.get("candidate_evaluations", 0),
                 "block_pool": config.block_pool,
                 "use_learned": config.use_learned,
+                "profile": args.profile,
+                "post_polish_rounds": config.post_polish_rounds,
+                "polish_candidate_limit": config.polish_candidate_limit,
+                "augment_repaired_candidates": config.augment_repaired_candidates
+                and not args.disable_candidate_augmentation,
             }
+            history = result.diagnostics.get("block_history", [])
+            if history:
+                polish_records = history[-1].get("polish", [])
+                row["polish_rounds_ran"] = len(polish_records)
+                row["polish_lp_calls"] = sum(int(item.get("lp_calls", 0)) for item in polish_records)
             rows.append(row)
             if result.solution.feasible and (
                 best_pair is None or result.solution.objective > best_pair[0]["objective"]
@@ -232,7 +321,18 @@ def _write_instance_outputs(
 
 
 def _write_markdown(rows: list[dict], path: Path) -> None:
-    headers = ["instance", "config", "seed", "objective", "gap_percent", "feasible", "runtime_ms", "lp_calls"]
+    headers = [
+        "instance",
+        "config",
+        "profile",
+        "seed",
+        "objective",
+        "gap_percent",
+        "feasible",
+        "runtime_ms",
+        "lp_calls",
+        "polish_rounds_ran",
+    ]
     lines = ["# MIQP Auto SOTA Summary", "", "| " + " | ".join(headers) + " |", "| " + " | ".join("---" for _ in headers) + " |"]
     for row in rows:
         lines.append("| " + " | ".join(str(row.get(header, "")) for header in headers) + " |")
