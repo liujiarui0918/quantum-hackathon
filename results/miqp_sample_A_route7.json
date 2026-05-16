@@ -1,0 +1,528 @@
+{
+  "instance": {
+    "name": "miqp_sample_A",
+    "n": 15,
+    "p": 5,
+    "m1": 5,
+    "m2": 1,
+    "q_density": 1.0,
+    "q_abs_max": 1.9895938551805163,
+    "a_abs_max": 4.9876650628353705,
+    "g_abs_max": 4.80589085594327,
+    "b_min": 0.0,
+    "b_prime_min": 0.0,
+    "has_reference_solution": true,
+    "source_path": "量化优化\\量化优化\\2026量子计算大赛·混合整数优化问题赛道小规模测试数据\\miqp_sample_A.npz"
+  },
+  "reference_solution": {
+    "objective": 106.09463614019306,
+    "optimal_value": 106.09463614019307,
+    "feasible": true,
+    "x_ones": 8,
+    "y_nonzero": 3,
+    "constraint_report": {
+      "is_feasible": true,
+      "total_violation": 8.881784197001252e-16,
+      "mixed_max_violation": 8.881784197001252e-16,
+      "binary_max_violation": 0.0,
+      "mixed_lhs": [
+        -6.626788796648846,
+        4.938063491737957,
+        2.967400074157794,
+        17.74061298433434,
+        7.115653573396777
+      ],
+      "binary_lhs": [
+        1.0
+      ]
+    }
+  },
+  "portfolio": [
+    {
+      "seed": 7,
+      "objective": 106.09463614019307,
+      "feasible": true,
+      "mode": "exact_binary_plus_continuous_lp"
+    }
+  ],
+  "best_seed": 7,
+  "miqp_aware_route7": {
+    "instance_name": "miqp_sample_A",
+    "solution": {
+      "status": "feasible",
+      "objective": 106.09463614019307,
+      "feasible": true,
+      "x": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1,
+        1,
+        1,
+        1,
+        0
+      ],
+      "y": [
+        0.20215185860465057,
+        0.0,
+        5.9357840813038365,
+        0.0,
+        2.502712788721
+      ],
+      "diagnostics": {
+        "constraint_report": {
+          "is_feasible": true,
+          "total_violation": 4.440892098500626e-15,
+          "mixed_max_violation": 4.440892098500626e-15,
+          "binary_max_violation": 0.0,
+          "mixed_lhs": [
+            -6.626788796648848,
+            4.938063491737957,
+            2.967400074157794,
+            17.74061298433434,
+            7.115653573396781
+          ],
+          "binary_lhs": [
+            1.0
+          ]
+        }
+      }
+    },
+    "block": {
+      "binary_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        9,
+        10,
+        12,
+        13,
+        14
+      ],
+      "frontier_indices": [
+        7,
+        8,
+        11
+      ],
+      "seed_index": 3,
+      "score": 0.723051,
+      "variable_scores": [
+        {
+          "index": 0,
+          "objective_score": 0.070777,
+          "coupling_score": 0.823879,
+          "mixed_constraint_score": 0.74854,
+          "binary_constraint_score": 0.0,
+          "total_score": 0.459299
+        },
+        {
+          "index": 1,
+          "objective_score": 0.515665,
+          "coupling_score": 0.603241,
+          "mixed_constraint_score": 0.658906,
+          "binary_constraint_score": 1.0,
+          "total_score": 0.647615
+        },
+        {
+          "index": 2,
+          "objective_score": 0.987843,
+          "coupling_score": 0.924016,
+          "mixed_constraint_score": 0.447001,
+          "binary_constraint_score": 1.0,
+          "total_score": 0.859159
+        },
+        {
+          "index": 3,
+          "objective_score": 0.937568,
+          "coupling_score": 0.840667,
+          "mixed_constraint_score": 0.743685,
+          "binary_constraint_score": 1.0,
+          "total_score": 0.874241
+        },
+        {
+          "index": 4,
+          "objective_score": 1.0,
+          "coupling_score": 0.749214,
+          "mixed_constraint_score": 0.617964,
+          "binary_constraint_score": 1.0,
+          "total_score": 0.835818
+        },
+        {
+          "index": 5,
+          "objective_score": 0.842854,
+          "coupling_score": 0.858569,
+          "mixed_constraint_score": 0.743234,
+          "binary_constraint_score": 1.0,
+          "total_score": 0.852002
+        },
+        {
+          "index": 6,
+          "objective_score": 0.315068,
+          "coupling_score": 0.573501,
+          "mixed_constraint_score": 1.0,
+          "binary_constraint_score": 1.0,
+          "total_score": 0.645246
+        },
+        {
+          "index": 9,
+          "objective_score": 0.791528,
+          "coupling_score": 0.644753,
+          "mixed_constraint_score": 0.781954,
+          "binary_constraint_score": 1.0,
+          "total_score": 0.769513
+        },
+        {
+          "index": 10,
+          "objective_score": 0.550073,
+          "coupling_score": 0.730366,
+          "mixed_constraint_score": 0.885373,
+          "binary_constraint_score": 0.0,
+          "total_score": 0.597725
+        },
+        {
+          "index": 12,
+          "objective_score": 0.441707,
+          "coupling_score": 1.0,
+          "mixed_constraint_score": 0.714627,
+          "binary_constraint_score": 0.0,
+          "total_score": 0.625438
+        },
+        {
+          "index": 13,
+          "objective_score": 0.84054,
+          "coupling_score": 0.909335,
+          "mixed_constraint_score": 0.688562,
+          "binary_constraint_score": 0.0,
+          "total_score": 0.708142
+        },
+        {
+          "index": 14,
+          "objective_score": 0.764329,
+          "coupling_score": 0.64174,
+          "mixed_constraint_score": 0.992527,
+          "binary_constraint_score": 1.0,
+          "total_score": 0.802413
+        }
+      ],
+      "rationale": {
+        "strategy": "greedy",
+        "max_block_size": 12,
+        "frontier_size": 10,
+        "score_weights": {
+          "objective": 0.3,
+          "coupling": 0.35,
+          "mixed_constraint": 0.2,
+          "binary_constraint": 0.15
+        },
+        "incumbent_ones": null,
+        "excluded_count": 0
+      }
+    },
+    "warm_start": {
+      "probabilities": [
+        {
+          "index": 13,
+          "score": 1.150392,
+          "probability_one": 0.759583,
+          "confidence": 0.759583
+        },
+        {
+          "index": 8,
+          "score": 1.072917,
+          "probability_one": 0.745151,
+          "confidence": 0.745151
+        },
+        {
+          "index": 10,
+          "score": 0.948491,
+          "probability_one": 0.720812,
+          "confidence": 0.720812
+        },
+        {
+          "index": 4,
+          "score": 0.928084,
+          "probability_one": 0.716686,
+          "confidence": 0.716686
+        },
+        {
+          "index": 3,
+          "score": 0.922227,
+          "probability_one": 0.715496,
+          "confidence": 0.715496
+        },
+        {
+          "index": 14,
+          "score": 0.860966,
+          "probability_one": 0.702863,
+          "confidence": 0.702863
+        },
+        {
+          "index": 2,
+          "score": 0.838994,
+          "probability_one": 0.698253,
+          "confidence": 0.698253
+        },
+        {
+          "index": 5,
+          "score": 0.827309,
+          "probability_one": 0.695786,
+          "confidence": 0.695786
+        },
+        {
+          "index": 9,
+          "score": 0.793407,
+          "probability_one": 0.688563,
+          "confidence": 0.688563
+        },
+        {
+          "index": 12,
+          "score": 0.76329,
+          "probability_one": 0.682068,
+          "confidence": 0.682068
+        },
+        {
+          "index": 7,
+          "score": 0.531585,
+          "probability_one": 0.629853,
+          "confidence": 0.629853
+        },
+        {
+          "index": 11,
+          "score": 0.508963,
+          "probability_one": 0.624563,
+          "confidence": 0.624563
+        },
+        {
+          "index": 1,
+          "score": 0.462173,
+          "probability_one": 0.61353,
+          "confidence": 0.61353
+        },
+        {
+          "index": 6,
+          "score": 0.415068,
+          "probability_one": 0.602303,
+          "confidence": 0.602303
+        },
+        {
+          "index": 0,
+          "score": 0.40762,
+          "probability_one": 0.600517,
+          "confidence": 0.600517
+        }
+      ],
+      "fixing_plan": {
+        "confidence_threshold": 0.82,
+        "fixed_bits": [],
+        "free_bits": [
+          13,
+          10,
+          4,
+          3,
+          14,
+          2,
+          5,
+          9,
+          12,
+          1,
+          6,
+          0
+        ],
+        "ranked_bits": [
+          {
+            "index": 13,
+            "score": 1.150392,
+            "probability_one": 0.759583
+          },
+          {
+            "index": 10,
+            "score": 0.948491,
+            "probability_one": 0.720812
+          },
+          {
+            "index": 4,
+            "score": 0.928084,
+            "probability_one": 0.716686
+          },
+          {
+            "index": 3,
+            "score": 0.922227,
+            "probability_one": 0.715496
+          },
+          {
+            "index": 14,
+            "score": 0.860966,
+            "probability_one": 0.702863
+          },
+          {
+            "index": 2,
+            "score": 0.838994,
+            "probability_one": 0.698253
+          },
+          {
+            "index": 5,
+            "score": 0.827309,
+            "probability_one": 0.695786
+          },
+          {
+            "index": 9,
+            "score": 0.793407,
+            "probability_one": 0.688563
+          },
+          {
+            "index": 12,
+            "score": 0.76329,
+            "probability_one": 0.682068
+          },
+          {
+            "index": 1,
+            "score": 0.462173,
+            "probability_one": 0.61353
+          },
+          {
+            "index": 6,
+            "score": 0.415068,
+            "probability_one": 0.602303
+          },
+          {
+            "index": 0,
+            "score": 0.40762,
+            "probability_one": 0.600517
+          }
+        ]
+      },
+      "threshold_assignment": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "repaired_assignment": [
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        1,
+        1,
+        0,
+        1,
+        1,
+        1,
+        1,
+        0
+      ],
+      "rationale": {
+        "strategy": "objective_marginal_plus_constraint_relief",
+        "temperature": 1.0,
+        "confidence_threshold": 0.82,
+        "block_size": 12
+      }
+    },
+    "cuts": [
+      {
+        "cut_type": "benders_optimality",
+        "theta_rhs": 10.798721408172813,
+        "x_coefficients": [
+          4.769467509873882,
+          7.597790848606904,
+          1.4842140151740963,
+          9.126811053024902,
+          3.1525821389064896,
+          5.610536305618771,
+          8.032521120281318,
+          6.184274971725874,
+          5.909374067417138,
+          3.6057887841329124,
+          10.282889269092552,
+          6.4815718790137655,
+          8.384950494086041,
+          5.3744861596455,
+          9.703896614280298
+        ],
+        "active_constraints": [
+          2,
+          3,
+          4
+        ],
+        "violation_rows": [],
+        "diagnostics": {
+          "continuous_objective": 63.79627206464634,
+          "cut_value_at_current_x": 63.79627206464633,
+          "cut_tightness_gap": 7.105427357601002e-15
+        }
+      }
+    ],
+    "continuous_subproblem": {
+      "status": "optimal",
+      "feasible": true,
+      "objective": 63.79627206464634,
+      "y": [
+        0.20215185860465057,
+        0.0,
+        5.9357840813038365,
+        0.0,
+        2.502712788721
+      ],
+      "dual_multipliers": [
+        0.0,
+        0.0,
+        1.6611843081396878,
+        0.07622887857679161,
+        0.6347942447389846
+      ],
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "diagnostics": {
+        "lp_fun": -63.79627206464634,
+        "mixed_rhs": [
+          27.170913430998525,
+          26.763892347903273,
+          26.260778165354903,
+          30.377993121121563,
+          28.129743229047612
+        ],
+        "active_mixed_rows": [
+          2,
+          3,
+          4
+        ]
+      }
+    },
+    "diagnostics": {
+      "route": "miqp_aware_learning_guided",
+      "mode": "exact_binary_plus_continuous_lp",
+      "candidate_evaluations": 1152,
+      "exact_binary_limit": 15,
+      "candidate_limit": 64,
+      "max_iterations": 4,
+      "enable_solver_portfolio": true,
+      "qaoa_max_qubits": 10,
+      "block_history": []
+    }
+  },
+  "runtime_ms": 2087.065
+}
