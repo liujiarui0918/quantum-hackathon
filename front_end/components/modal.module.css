@@ -10,7 +10,7 @@
 .backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--modal-backdrop-bg, rgba(0, 0, 0, 0.55));
 }
 
 .dialog {

@@ -33,9 +33,23 @@ async function ensureMongo() {
   if (!conn) throw new Error('MongoDB 未连接');
 }
 
-export async function listTasks(): Promise<Task[]> {
+export interface TaskSearchFilters {
+  datasetName?: string;
+  n?: number;
+  p?: number;
+  m1?: number;
+  m2?: number;
+}
+
+export async function listTasks(filters?: TaskSearchFilters): Promise<Task[]> {
   await ensureMongo();
-  const rows = await MiqpTask.find().sort({ createdAt: -1 }).lean().exec();
+  const where: Record<string, unknown> = {};
+  if (filters?.datasetName) where.datasetName = filters.datasetName;
+  if (filters?.n !== undefined) where.n = filters.n;
+  if (filters?.p !== undefined) where.p = filters.p;
+  if (filters?.m1 !== undefined) where.m1 = filters.m1;
+  if (filters?.m2 !== undefined) where.m2 = filters.m2;
+  const rows = await MiqpTask.find(where).sort({ createdAt: -1 }).lean().exec();
   return rows.map((x) => normalizeTaskDoc(x as Record<string, unknown>));
 }
 

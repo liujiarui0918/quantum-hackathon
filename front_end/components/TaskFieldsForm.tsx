@@ -4,9 +4,17 @@ import type { ReactNode } from 'react';
 import type { TaskPayload } from '@/lib/types';
 import styles from './task-form.module.css';
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <label className={styles.field}>
+    <label className={className ? `${styles.field} ${className}` : styles.field}>
       <span className={styles.label}>{label}</span>
       {children}
     </label>
@@ -56,7 +64,7 @@ export function TaskFieldsForm({
         <Field label="任务名称（name）">
           <input className={styles.input} value={value.name} disabled={ro} onChange={(e) => patch({ name: e.target.value })} placeholder="请输入任务名称" />
         </Field>
-        <Field label="数据集文件（datasetName）">
+        <Field label="数据集文件（datasetName）" className={styles.fieldSpaced}>
           <select className={styles.select} value={value.datasetName} disabled={ro} onChange={(e) => applyDatasetPreset(e.target.value)}>
             <option value="miqp_sample_A.npz">miqp_sample_A.npz</option>
             <option value="miqp_sample_B.npz">miqp_sample_B.npz</option>
