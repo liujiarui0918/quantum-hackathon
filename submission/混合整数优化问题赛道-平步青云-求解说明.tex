@@ -11,7 +11,7 @@
 \usepackage{enumitem}
 \usepackage{array}
 
-\geometry{left=2.2cm,right=2.2cm,top=2.2cm,bottom=2.4cm}
+\geometry{left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm}
 \hypersetup{hidelinks}
 \setlist[itemize]{leftmargin=1.8em,itemsep=0.2em,topsep=0.2em}
 \setlist[enumerate]{leftmargin=1.8em,itemsep=0.2em,topsep=0.2em}
@@ -37,11 +37,11 @@
 \definecolor{RouteBlue}{HTML}{173B5F}
 \definecolor{RouteGreen}{HTML}{1E7A5F}
 \definecolor{RouteOrange}{HTML}{B95F19}
-\graphicspath{{submission/baseline_study/figures/}{submission/selector_ablation/}}
+\graphicspath{{submission/baseline_study/figures/}{submission/selector_ablation/}{results/hidden_final/figures/}}
 
 \title{\textbf{混合整数优化问题赛道求解说明}}
 \author{队伍：平步青云}
-\date{2026年5月16日}
+\date{2026年5月17日}
 
 \begin{document}
 
@@ -403,6 +403,35 @@ python scripts/run_miqp_hidden_demo.py --input-dir data/final_tests \
 
 该脚本会为每个实例输出 \texttt{*\_all\_runs.json}、\texttt{*\_best\_route7.json}、\texttt{*\_best\_solution.npz} 和 \texttt{hidden\_demo\_summary.md/json}。因此隐藏数据到达后，不需要临场重写代码，只需要替换输入目录并根据剩余时间选择是否加 \texttt{--include-qaoa}。
 
+\subsection{最终验证数据集结果}
+
+主办方最终公布的五个大规模验证文件已经按上述流程在堡垒机 \texttt{qiskit} 容器中完成求解，并同步到提交包的 \path{results/hidden_final/}。官方验证数据只给出实例，不提供标准答案或最优值，因此本文不报告官方 gap；所有结果均采用同一个验证器重新计算原始目标函数、混合约束违反量和二进制约束违反量。最终提交的预测文件为根目录下 \path{miqpscale1.npz} 到 \path{miqpscale5.npz}，每个文件均包含 \texttt{x}、\texttt{y}、\texttt{objective} 和 \texttt{feasible} 四个字段。
+
+\begin{center}
+\small
+\begin{tabular}{lrrrrrrl}
+\toprule
+实例 & $n$ & $p$ & 目标值 & LP 调用 & runtime(s) & 最大约束违反 & 状态 \\
+\midrule
+\texttt{miqp\_test\_1} & 15 & 5 & 157.585995 & 28032 & 42.99 & $4.00{\times}10^{-15}$ & feasible \\
+\texttt{miqp\_test\_2} & 40 & 10 & 459.864903 & 1057 & 110.60 & $3.55{\times}10^{-15}$ & feasible \\
+\texttt{miqp\_test\_3} & 80 & 20 & 765.690515 & 1684 & 168.73 & $1.92{\times}10^{-13}$ & feasible \\
+\texttt{miqp\_test\_4} & 120 & 30 & 636.175569 & 1371 & 245.63 & $3.55{\times}10^{-14}$ & feasible \\
+\texttt{miqp\_test\_5} & 150 & 50 & 842.345737 & 554 & 85.44 & $6.94{\times}10^{-12}$ & feasible \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+这五个结果采用统一的 QBB-MIQP hybrid portfolio：先由 subQUBO block、退火/QAOA-compatible sampler、结构化 repair 和 cut-guided selector 产生高价值二进制候选，再由连续 LP 子问题补全 $y$ 并以原约束验证。它不是纯经典整包 MIQP 求解器，也不宣称调用真实 QPU；量子或量子启发部分只作用于二进制 block。每次送入 QAOA/退火候选生成器的 block 均严格不超过 30 个 qubit，默认控制在 20--24 bit 内，连续变量始终由 LP 子问题处理。
+
+最终赛马记录还保留了收敛诊断。图文件为 \path{results/hidden_final/figures/sota_loss_curves.png}，纵轴表示相对各实例最终 incumbent 的剩余 loss，横轴表示候选评估进程；曲线展示 route7++ safe 与 boost/cluster 配置在不同规模上的收敛差异。
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.88\linewidth]{sota_loss_curves.png}
+  \caption{最终五个验证实例的 QBB-MIQP 赛马收敛曲线。每条曲线以该实例最终可行 incumbent 为基准归一化，便于比较不同规模下 route7++ 与 boost 配置的优化进程。}
+\end{figure}
+
 源码包中还提供结果汇总脚本 \path{scripts/render_miqp_results.py}：
 
 \begin{verbatim}
@@ -577,7 +606,7 @@ block\_qaoa\_lp & 10-qubit QAOA 候选 & 证明量子线路接口可运行，B �
 
 \section{总结}
 
-本提交版本给出了一个面向官方 MIQP 结构的量子-经典混合求解框架：二进制变量由 block QUBO/QAOA/annealing backend 搜索，连续变量由 LP 精确求解，二者通过 warm-start、repair 和 cut advice 闭环。与只报告单一最强算法不同，本文补充了经典、随机、退火、学习引导和 block-QAOA 等基线，并生成了目标值、gap、资源和结构图。结果显示，样例 A 已达到官方最优；样例 B 在当前启发式集合中由 QBB-MIQP 达到官方最优，gap 为 $0\%$。
+本提交版本给出了一个面向官方 MIQP 结构的量子-经典混合求解框架：二进制变量由 block QUBO/QAOA/annealing backend 搜索，连续变量由 LP 精确求解，二者通过 warm-start、repair 和 cut advice 闭环。与只报告单一最强算法不同，本文补充了经典、随机、退火、学习引导和 block-QAOA 等基线，并生成了目标值、gap、资源和结构图。结果显示，样例 A 已达到官方最优；样例 B 在当前启发式集合中由 QBB-MIQP 达到官方最优，gap 为 $0\%$。最终五个大规模验证实例均输出可行解，重算目标值分别为 $157.585995$、$459.864903$、$765.690515$、$636.175569$ 和 $842.345737$；由于官方未提供隐藏集标准答案，文中仅报告可复算目标值、约束违反量和相对最终 incumbent 的收敛曲线。
 
 \paragraph{可复现材料}
 提交包包含：
@@ -586,7 +615,9 @@ block\_qaoa\_lp & 10-qubit QAOA 候选 & 证明量子线路接口可运行，B �
   \item \texttt{scripts/miqp\_baseline\_study.py}：横向基线与作图。
   \item \texttt{scripts/miqp\_selector\_ablation.py}：block selector 权重与聚类策略消融。
   \item \texttt{scripts/run\_miqp\_hidden\_demo.py}：五个官方隐藏测试的规模感知一键运行入口。
+  \item \texttt{scripts/verify\_hidden\_final.py}：最终验证集预测结果的目标值与约束复算脚本。
   \item \texttt{results/}：根目录结果副本，便于直接上传和评审查看。
+  \item \texttt{results/hidden\_final/}：五个最终验证实例的 JSON、NPZ、summary 与 \texttt{sota\_loss\_curves.png}。
   \item \texttt{submission/baseline\_study/miqp\_baseline\_study.csv}：所有 baseline 数值。
   \item \texttt{submission/baseline\_study/figures/}：论文插图。
   \item \texttt{submission/results/}：route7 样例 JSON/NPZ 输出。

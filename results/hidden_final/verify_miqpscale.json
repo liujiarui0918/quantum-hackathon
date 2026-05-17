@@ -1,0 +1,70 @@
+{
+  "ok": true,
+  "rows": [
+    {
+      "instance": "miqp_test_1",
+      "solution": "miqpscale1.npz",
+      "objective": 157.58599463112466,
+      "stored_objective": 157.58599463112466,
+      "objective_delta": 0.0,
+      "stored_feasible": true,
+      "recomputed_feasible": true,
+      "mixed_max_violation": 3.9968028886505635e-15,
+      "binary_max_violation": 0.0,
+      "x_ones": 12,
+      "y_nonzero": 2
+    },
+    {
+      "instance": "miqp_test_2",
+      "solution": "miqpscale2.npz",
+      "objective": 459.8649030466812,
+      "stored_objective": 459.8649030466812,
+      "objective_delta": 0.0,
+      "stored_feasible": true,
+      "recomputed_feasible": true,
+      "mixed_max_violation": 3.552713678800501e-15,
+      "binary_max_violation": 0.0,
+      "x_ones": 31,
+      "y_nonzero": 2
+    },
+    {
+      "instance": "miqp_test_3",
+      "solution": "miqpscale3.npz",
+      "objective": 765.6905153906166,
+      "stored_objective": 765.6905153906166,
+      "objective_delta": 0.0,
+      "stored_feasible": true,
+      "recomputed_feasible": true,
+      "mixed_max_violation": 1.9184653865522705e-13,
+      "binary_max_violation": 0.0,
+      "x_ones": 48,
+      "y_nonzero": 7
+    },
+    {
+      "instance": "miqp_test_4",
+      "solution": "miqpscale4.npz",
+      "objective": 636.1755692734603,
+      "stored_objective": 636.1755692734603,
+      "objective_delta": 0.0,
+      "stored_feasible": true,
+      "recomputed_feasible": true,
+      "mixed_max_violation": 3.552713678800501e-14,
+      "binary_max_violation": 0.0,
+      "x_ones": 36,
+      "y_nonzero": 7
+    },
+    {
+      "instance": "miqp_test_5",
+      "solution": "miqpscale5.npz",
+      "objective": 842.3457368804827,
+      "stored_objective": 842.3457368804827,
+      "objective_delta": 0.0,
+      "stored_feasible": true,
+      "recomputed_feasible": true,
+      "mixed_max_violation": 6.944667063635279e-12,
+      "binary_max_violation": 0.0,
+      "x_ones": 49,
+      "y_nonzero": 15
+    }
+  ]
+}

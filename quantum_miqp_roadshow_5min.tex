@@ -9,7 +9,7 @@
 \usepackage{tabularx}
 \usepackage{ragged2e}
 
-\graphicspath{{submission/baseline_study/figures/}{submission/selector_ablation/}}
+\graphicspath{{submission/baseline_study/figures/}{submission/selector_ablation/}{results/hidden_final/figures/}}
 
 \usetheme{Berlin}
 \usecolortheme{whale}
@@ -50,9 +50,9 @@
 
 \begin{frame}
  \titlepage
- \vspace{-5mm}
+ \vspace{-7mm}
  \begin{alertblock}{5分钟先给结论}
- A/B 公开样例均达到官方最优；B 样例目标值 \textbf{610.266639}，gap \textbf{0\%}。核心不是把 MIQP 硬塞进大 QUBO，而是把量子/量子启发搜索限制在高价值 \textbf{20-bit block}，再用 LP 验真连续变量。
+ \scriptsize A/B 公开样例均达到官方最优；最终五个验证集全部可行，目标值为 \textbf{157.586 / 459.865 / 765.691 / 636.176 / 842.346}。核心不是把 MIQP 硬塞进大 QUBO，而是把量子/量子启发搜索限制在高价值 block，再用 LP 验真连续变量。
  \end{alertblock}
 \end{frame}
 
@@ -161,27 +161,38 @@ Block-QAOA + LP & 488.070768 & 20.02\% & 146 & 10-qubit 量子基线 \\
 \end{alertblock}
 \end{frame}
 
-\begin{frame}{复现与交付：明天数据来了，直接跑}
-\scriptsize
+\begin{frame}{最终验证与交付：五个测试集全部可行}
+\tiny
 \begin{columns}[T,onlytextwidth]
 \begin{column}{0.50\textwidth}
 \centering
-\includegraphics[width=\linewidth,height=0.47\textheight,keepaspectratio]{miqp_sample_B_resource_profile.png}
-\tightcaption{论文图：资源画像。block 搜索，而非全局 80-qubit。}
+\includegraphics[width=\linewidth,height=0.44\textheight,keepaspectratio]{sota_loss_curves.png}
+\tightcaption{最终验证集收敛曲线。纵轴为相对最终 incumbent 的剩余 loss。}
 \end{column}
 \begin{column}{0.47\textwidth}
-\begin{block}{工程复现与入口}
-堡垒机 \texttt{qiskit} 容器已完成源码包解压、安装、测试与 A/B 重跑。隐藏测试入口：\texttt{scripts/run\_miqp\_hidden\_demo.py}。
+\begin{block}{最终验证结果}
+\centering
+\begin{tabular}{lrr}
+\toprule
+实例 & 目标值$\uparrow$ & 状态 \\
+\midrule
+test 1 & 157.585995 & 可行 \\
+test 2 & 459.864903 & 可行 \\
+test 3 & 765.690515 & 可行 \\
+test 4 & 636.175569 & 可行 \\
+test 5 & 842.345737 & 可行 \\
+\bottomrule
+\end{tabular}
 \end{block}
 \vspace{-1mm}
-\begin{alertblock}{隐藏测试预案}
+\begin{alertblock}{复现与合规}
 \begin{itemize}
-  \item test 1：exact-QUBO + LP。
-  \item test 2--3：subQUBO / block pool。
-  \item test 4--5：cluster/cut-guided + portfolio stress。
+  \item 官方未给隐藏集标准答案，因此只报告重算目标值与可行性。
+  \item subQUBO/QAOA/退火 block 严格不超过 30 qubit，默认 20--24 bit。
+  \item 源码 zip 已在堡垒机 \texttt{qiskit} 容器中完成安装、测试和复算。
 \end{itemize}
 \centering
-\textbf{不赌全局大线路；只打最关键的二进制块。}
+\textbf{最终提交：PDF + 源码包 + miqpscale1--5.npz。}
 \end{alertblock}
 \end{column}
 \end{columns}

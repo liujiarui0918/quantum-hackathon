@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from dataclasses import asdict, dataclass
+from dataclasses import replace
 from pathlib import Path
 from typing import Sequence
 
@@ -111,7 +112,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     summary_rows = []
-    for plan in HIDDEN_CASES:
+    for base_plan in HIDDEN_CASES:
+        if args.cases and base_plan.filename not in args.cases:
+            continue
+        plan = _tune_plan(base_plan, args)
         input_path = _find_input(input_dir, plan.filename)
         row = {
             "filename": plan.filename,
@@ -192,7 +196,23 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--include-qaoa", action="store_true", help="Also allow small block QAOA candidates.")
     parser.add_argument("--dry-run", action="store_true", help="Only write the planned commands and profiles.")
     parser.add_argument("--strict", action="store_true", help="Fail on missing files or dimension mismatches.")
+    parser.add_argument("--cases", nargs="*", default=None, help="Optional subset, e.g. miqp_test_3.npz miqp_test_5.npz.")
+    parser.add_argument("--budget-scale", type=float, default=1.0, help="Scale max_lp_evals for all cases.")
+    parser.add_argument("--time-limit-sec", type=float, default=None, help="Per config/seed solver time limit.")
+    parser.add_argument("--max-configs", type=int, default=None, help="Override max configs per instance.")
+    parser.add_argument("--profile-override", choices=["quick", "safe", "deep"], default=None)
     return parser
+
+
+def _tune_plan(plan: HiddenCasePlan, args: argparse.Namespace) -> HiddenCasePlan:
+    max_lp_evals = max(1, int(round(plan.max_lp_evals * args.budget_scale)))
+    return replace(
+        plan,
+        profile=args.profile_override or plan.profile,
+        max_lp_evals=max_lp_evals,
+        max_configs=args.max_configs if args.max_configs is not None else plan.max_configs,
+        time_limit_sec=args.time_limit_sec if args.time_limit_sec is not None else plan.time_limit_sec,
+    )
 
 
 def _find_input(input_dir: Path, filename: str) -> Path | None:

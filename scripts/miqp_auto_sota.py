@@ -286,6 +286,18 @@ def _run_instance(
                 best_pair = (row, result)
     if best_pair is None:
         best_pair = (rows[0], None)
+    best_objective = best_pair[0].get("objective")
+    if best_objective is not None and abs(float(best_objective)) > 1e-12:
+        for row in rows:
+            if row.get("feasible") and row.get("objective") is not None:
+                row["gap_to_instance_best_percent"] = (
+                    100.0 * (float(best_objective) - float(row["objective"])) / abs(float(best_objective))
+                )
+            else:
+                row["gap_to_instance_best_percent"] = None
+    else:
+        for row in rows:
+            row["gap_to_instance_best_percent"] = None
     return rows, best_pair
 
 
@@ -328,6 +340,7 @@ def _write_markdown(rows: list[dict], path: Path) -> None:
         "seed",
         "objective",
         "gap_percent",
+        "gap_to_instance_best_percent",
         "feasible",
         "runtime_ms",
         "lp_calls",

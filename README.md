@@ -597,3 +597,12 @@ python scripts/run_miqp_hidden_demo.py --input-dir data/final_tests --output-dir
 ```
 
 Use `--dry-run` to inspect the size-aware plan without solving. The runner maps the announced hidden-test sizes to exact, safe, or deep route7++ profiles and writes per-instance best JSON/NPZ outputs plus `hidden_demo_summary.md`.
+
+Final hidden validation artifacts are included in `results/hidden_final/` and the submission-root prediction files `miqpscale1.npz` ... `miqpscale5.npz`. The five recomputed feasible objectives are `157.585995`, `459.864903`, `765.690515`, `636.175569`, and `842.345737`; the official hidden data did not provide reference optima, so no official gap is reported. Recompute the submitted predictions with:
+
+```bash
+python scripts/verify_hidden_final.py \
+  --input-dir "量化优化/量化优化/2026量子计算大赛·混合整数优化问题赛道大规模得分验证数据" \
+  --predictions-dir . \
+  --output-json results/hidden_final/verify_miqpscale.json
+```

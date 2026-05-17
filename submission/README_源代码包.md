@@ -182,6 +182,53 @@ python scripts/run_miqp_hidden_demo.py \
   --dry-run
 ```
 
+## 最终验证数据集结果
+
+本源码包已纳入 2026-05-17 在堡垒机 `qiskit` 容器中得到的五个大规模验证结果。主办方未随验证数据提供标准答案，因此这里不写官方 gap，只报告重算目标值、可行性和约束违反量。最终提交预测文件放在源码包根目录：
+
+- `miqpscale1.npz`
+- `miqpscale2.npz`
+- `miqpscale3.npz`
+- `miqpscale4.npz`
+- `miqpscale5.npz`
+
+每个 `miqpscaleX.npz` 均包含 `x`, `y`, `objective`, `feasible` 四个数组字段。诊断版结果保留在 `results/hidden_final/`，包括五个 `miqp_test_X_route7.json`、五个 `miqp_test_X_solution.npz`、`hidden_final_summary.md/json`、`verify_hidden_final.json`、`verify_miqpscale.json` 以及 `figures/sota_loss_curves.png/csv`。
+
+最终结果汇总：
+
+| instance | objective | feasible | config | seed | LP calls | runtime(s) |
+| --- | ---: | --- | --- | ---: | ---: | ---: |
+| `miqp_test_1` | 157.585995 | True | `route7_safe` | 7 | 28032 | 42.99 |
+| `miqp_test_2` | 459.864903 | True | `miqp_test_2_seed23_cluster_boost` | 23 | 1057 | 110.60 |
+| `miqp_test_3` | 765.690515 | True | `miqp_test_3_seed23_cluster_boost` | 23 | 1684 | 168.73 |
+| `miqp_test_4` | 636.175569 | True | `miqp_test_4_seed23_cluster_boost` | 23 | 1371 | 245.63 |
+| `miqp_test_5` | 842.345737 | True | `route7pp_balanced` | 7 | 554 | 85.44 |
+
+用官方大规模验证数据复算提交文件：
+
+```bash
+python scripts/verify_hidden_final.py \
+  --input-dir "量化优化/量化优化/2026量子计算大赛·混合整数优化问题赛道大规模得分验证数据" \
+  --predictions-dir . \
+  --output-json results/hidden_final/verify_miqpscale.json
+```
+
+用诊断目录复算：
+
+```bash
+python scripts/verify_hidden_final.py \
+  --input-dir "量化优化/量化优化/2026量子计算大赛·混合整数优化问题赛道大规模得分验证数据" \
+  --results-dir results/hidden_final \
+  --output-json results/hidden_final/verify_hidden_final.json
+```
+
+堡垒机宿主机与 `qiskit` 容器中可使用相同命令。若源码 zip 已上传到宿主机 `/home/infra/.../`，可在宿主机执行：
+
+```bash
+docker cp "混合整数优化问题赛道-平步青云-源代码.zip" qiskit:/root/submission_recheck/source.zip
+docker exec qiskit bash -lc 'rm -rf /root/submission_recheck/work && python -m zipfile -e /root/submission_recheck/source.zip /root/submission_recheck/work && cd /root/submission_recheck/work && python -m pip install -e ".[dev]" && python -m pytest tests/test_miqp_route7.py tests/test_miqp_sota_scripts.py -q && python scripts/verify_hidden_final.py --input-dir /root/quantum_hackathon_hidden_run/final_tests --results-dir results/hidden_final'
+```
+
 route7++ 训练数据与非神经线性 block scorer（可选，不作为最终默认主线）：
 
 ```bash
@@ -231,6 +278,8 @@ scripts/
   miqp_synthetic_suite.py  MIQP-like synthetic .npz 生成器
   miqp_train_block_model.py  非神经线性 block scorer 训练
   miqp_auto_sota.py  多配置赛马并选择每个实例的最高可行解
+  miqp_plot_sota_curves.py  最终验证集收敛曲线生成
+  verify_hidden_final.py  最终 miqpscaleX.npz / hidden_final 结果复算
 
 tests/
   test_miqp_route7.py     MIQP 路线专用测试
