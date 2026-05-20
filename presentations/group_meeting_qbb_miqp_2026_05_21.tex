@@ -1,0 +1,1168 @@
+\documentclass[aspectratio=169]{beamer}
+
+\usepackage{ctex}
+\usepackage{amsmath, amsfonts, amssymb, bm}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{ragged2e}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning}
+
+\graphicspath{{submission/baseline_study/figures/}{submission/selector_ablation/}{results/hidden_final/figures/}}
+
+\usetheme{Berlin}
+\usecolortheme{whale}
+\useinnertheme[shadow=true]{rounded}
+\usefonttheme[onlymath]{serif}
+\setbeamercovered{transparent}
+\setbeamertemplate{navigation symbols}{}
+\hypersetup{hidelinks}
+
+\newcolumntype{Y}{>{\RaggedRight\arraybackslash}X}
+\newcommand{\good}[1]{\textcolor{green!45!black}{#1}}
+\newcommand{\warn}[1]{\textcolor{orange!80!black}{#1}}
+\newcommand{\bad}[1]{\textcolor{red!70!black}{#1}}
+\newcommand{\tightcaption}[1]{%
+  \par\vspace{1.0mm}%
+  \noindent\makebox[\linewidth][c]{%
+    \begin{minipage}{0.92\linewidth}
+      \centering\scriptsize\color{black!70}#1
+    \end{minipage}%
+  }%
+  \par
+}
+\definecolor{RouteBlue}{HTML}{173B5F}
+\definecolor{RouteGreen}{HTML}{1E7A5F}
+\definecolor{RouteOrange}{HTML}{B95F19}
+\tikzset{
+  flowbox/.style={
+    draw=RouteBlue,
+    rounded corners=2pt,
+    very thick,
+    fill=blue!3,
+    align=center,
+    minimum height=10mm,
+    text width=2.15cm,
+    font=\scriptsize
+  },
+  flowboxwide/.style={
+    draw=RouteGreen,
+    rounded corners=2pt,
+    very thick,
+    fill=green!4,
+    align=center,
+    minimum height=10mm,
+    text width=2.55cm,
+    font=\scriptsize
+  },
+  flowstage/.style={
+    draw=RouteBlue,
+    rounded corners=3pt,
+    very thick,
+    fill=blue!3,
+    align=center,
+    minimum height=18mm,
+    text width=2.22cm,
+    font=\small
+  },
+  flowsummary/.style={
+    draw=RouteGreen,
+    rounded corners=2pt,
+    very thick,
+    fill=green!4,
+    align=center,
+    minimum height=12mm,
+    text width=3.65cm,
+    font=\scriptsize
+  },
+  flowarrow/.style={-{Latex[length=2.2mm]}, very thick, RouteBlue}
+}
+\newcommand{\sectionframe}[2]{
+\begin{frame}[plain]
+  \vfill
+  \begin{center}
+    {\Large\bfseries #1}\\[2mm]
+    {\small #2}
+  \end{center}
+  \vfill
+\end{frame}
+}
+
+\setbeamertemplate{footline}{%
+ \leavevmode%
+ \hbox{%
+ \begin{beamercolorbox}[wd=.31\paperwidth,ht=2.25ex,dp=1ex,center]{author in head/foot}
+ 平步青云
+ \end{beamercolorbox}%
+ \begin{beamercolorbox}[wd=.38\paperwidth,ht=2.25ex,dp=1ex,center]{title in head/foot}
+ QBB-MIQP 组会汇报
+ \end{beamercolorbox}%
+ \begin{beamercolorbox}[wd=.31\paperwidth,ht=2.25ex,dp=1ex,center]{date in head/foot}
+ 2026年5月21日 \quad \insertframenumber/\inserttotalframenumber
+ \end{beamercolorbox}%
+ }
+}
+
+\title[QBB-MIQP 组会汇报]{量子黑客松 MIQP 赛题项目复盘}
+\subtitle{从七条量子优化路线到 QBB-MIQP 混合求解器}
+\author[平步青云]{混合整数优化问题赛道 · 平步青云}
+\institute[Quantum MIQP]{Quantum Block-Benders for Mixed-Integer Quadratic Programming}
+\date{2026年5月21日}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+  \vspace{-6mm}
+  \begin{alertblock}{本次汇报目标}
+  \small 用 90--120 分钟把项目讲清楚：赛题是什么、为什么不能直接全量 QUBO、我们如何设计 QBB-MIQP、代码如何组织、结果是否可信、后续还能怎么做。
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{赛题入口：这次要解什么}
+\small
+\begin{block}{官方任务}
+给定二进制变量 $x$ 和连续变量 $y$，在混合线性约束下最大化二次目标：
+\[
+\max_{x\in\{0,1\}^n,\;y\ge 0}
+x^\top Qx+c^\top x+h^\top y,
+\quad
+Ax+Gy\le b,\;Bx\le b'.
+\]
+\end{block}
+\vspace{1mm}
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.48\textwidth}
+\begin{alertblock}{难点}
+\begin{itemize}
+  \item $x$ 带来组合爆炸。
+  \item $y$ 是连续变量，强行离散化会放大规模。
+  \item 罚函数过强或过弱都会扭曲原始问题。
+\end{itemize}
+\end{alertblock}
+\end{column}
+\begin{column}{0.48\textwidth}
+\begin{block}{本次汇报要回答的问题}
+\begin{itemize}
+  \item 哪些部分适合量子/量子启发搜索？
+  \item 哪些部分应该交给经典 LP 验证？
+  \item 最终结果如何复算、追溯和解释？
+\end{itemize}
+\end{block}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{目录}
+\small
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.48\textwidth}
+\begin{block}{01 项目审阅}
+交付物、仓库结构、代码可信链路。
+\end{block}
+\begin{block}{02 赛题建模}
+MIQP 结构、连续变量 LP 化、全量 QUBO 的瓶颈。
+\end{block}
+\begin{block}{03 算法主线}
+QBB-MIQP：block selector、warm-start、repair、LP 与 cut。
+\end{block}
+\end{column}
+\begin{column}{0.48\textwidth}
+\begin{block}{04 实验结果}
+公开 A/B、baseline、selector 消融、隐藏验证。
+\end{block}
+\begin{block}{05 工程与讨论}
+复现链路、量子模块定位、局限与后续研究。
+\end{block}
+\begin{block}{06 附录}
+关键命令、结果文件、参考材料。
+\end{block}
+\end{column}
+\end{columns}
+\end{frame}
+
+\section{项目审阅}
+\sectionframe{一、项目审阅}{先把仓库里已有的成果和边界讲明白。}
+
+\begin{frame}{仓库全景}
+\scriptsize
+\begin{tabularx}{\linewidth}{p{3.0cm}Y}
+\toprule
+目录或文件 & 作用 \\
+\midrule
+\path{src/quantum_hackathon/} & 核心算法包：建模、约束、求解器、QAOA、hybrid、MIQP route7。\\
+\path{tests/} & 核心回归测试，覆盖建模、QUBO、QAOA、hybrid、route7 和脚本。\\
+\path{learning_guides/} & 七条算法路线的学习讲义与 PDF。\\
+\path{literature/} & 论文、阅读索引和各路线开发需求文档。\\
+\path{scripts/} & baseline、消融、隐藏集求解、结果渲染、验证和作图脚本。\\
+\path{results/} & A/B、baseline、selector、hidden final 的结果副本。\\
+\path{submission/} & 最终提交 PDF、源码 zip、预测文件和实验插图。\\
+\path{front_end/}, \path{backend_service/} & 前端任务管理和 FastAPI 演示服务。\\
+\bottomrule
+\end{tabularx}
+\end{frame}
+
+\begin{frame}{项目从宽到窄的收束}
+\small
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.48\textwidth}
+\begin{block}{前期：七条路线}
+\begin{itemize}
+  \item QUBO / Ising 建模。
+  \item 约束处理与 repair。
+  \item 退火与 exact baseline。
+  \item QAOA / VQA。
+  \item Constrained mixer / warm-start。
+  \item Hybrid MILP / MIQP 分解。
+  \item Learning-guided optimization。
+\end{itemize}
+\end{block}
+\end{column}
+\begin{column}{0.48\textwidth}
+\begin{alertblock}{后期：MIQP 主线}
+\begin{itemize}
+  \item 官方赛题是带连续变量的 MIQP。
+  \item 全量量子化不现实。
+  \item 最终主线收束为 Route 7 / QBB-MIQP。
+  \item 其他路线变成可插拔 backend、baseline 或解释材料。
+\end{itemize}
+\end{alertblock}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{交付物状态}
+\small
+\begin{tabularx}{\linewidth}{p{3.4cm}p{2.2cm}Y}
+\toprule
+交付物 & 状态 & 说明 \\
+\midrule
+求解说明 PDF & \good{已完成} & 位于 \path{submission/}，文件名为赛道提交规范格式。\\
+源码包 ZIP & \good{已完成} & 位于 \path{submission/}，包含核心源码、测试、脚本与结果说明。\\
+公开 A/B 结果 & \good{已完成} & A/B 均可行且达到官方最优。\\
+隐藏验证文件 & \good{已完成} & \path{miqpscale1.npz} 到 \path{miqpscale5.npz}。\\
+横向 baseline & \good{已完成} & 经典、退火、learning-guided、block-QAOA、QBB-MIQP。\\
+前端演示链路 & \warn{可演示} & 有任务管理和远程执行链路，但不是最终算法可信性的核心证据。\\
+\bottomrule
+\end{tabularx}
+\end{frame}
+
+\begin{frame}{代码审阅：核心可信链路}
+\small
+\begin{block}{从输入到输出}
+\[
+\begin{aligned}
+&\text{official .npz}\rightarrow \text{MiqpInstance}\rightarrow \text{block selection}\\
+&\rightarrow \text{subQUBO candidates}\rightarrow \text{repair}\rightarrow \text{LP}(y)\\
+&\rightarrow \text{objective/feasibility}\rightarrow \text{NPZ/JSON}
+\end{aligned}
+\]
+\end{block}
+\begin{itemize}
+  \item 关键点 1：每个结果都能从 \path{results/*.json} 追溯到参数、seed、候选数和 LP 调用数。
+  \item 关键点 2：提交的 \path{miqpscale*.npz} 会由 \path{scripts/verify_hidden_final.py} 重新计算目标与约束。
+  \item 关键点 3：测试不是只跑 demo，还覆盖 route7、SOTA 脚本和预训练管线。
+\end{itemize}
+\end{frame}
+
+\begin{frame}{工程表面：前端和服务}
+\small
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.48\textwidth}
+\begin{block}{FastAPI 服务}
+\begin{itemize}
+  \item \path{backend_service/} 是核心包的薄封装。
+  \item 提供健康检查、示例问题、同步求解接口。
+  \item 主要服务小规模量子优化 demo，不承担隐藏集主求解。
+\end{itemize}
+\end{block}
+\end{column}
+\begin{column}{0.48\textwidth}
+\begin{block}{Next.js 前端}
+\begin{itemize}
+  \item \path{front_end/} 提供任务创建、执行、结果查看。
+  \item 新增 MIQP 任务字段与远程执行接口。
+  \item 适合组会展示“系统化交付”，但算法结论以脚本和结果文件为准。
+\end{itemize}
+\end{block}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{可信边界}
+\small
+\begin{alertblock}{可以明确说}
+\begin{itemize}
+  \item 本项目实现了可复现的量子/量子启发混合优化框架。
+  \item QAOA、QUBO、Ising、退火、learning-guided、hybrid 分解都有代码落点。
+  \item 最终最佳 MIQP 结果来自 QBB-MIQP 的 block portfolio、repair 和 LP 验真闭环。
+\end{itemize}
+\end{alertblock}
+\begin{block}{声明边界}
+\begin{itemize}
+  \item 不宣称调用真实 QPU。
+  \item 不宣称隐藏集最优，因为官方未给标准答案。
+  \item 不把 block-QAOA 单独包装成击败经典优化器的原因。
+\end{itemize}
+\end{block}
+\end{frame}
+
+\section{赛题建模}
+\sectionframe{二、赛题建模}{这题的关键不是“会不会 QUBO”，而是“哪些东西不该 QUBO”。}
+
+\begin{frame}{官方问题形式}
+\small
+\[
+\begin{aligned}
+\max_{x,y}\quad & x^\top Qx+c^\top x+h^\top y\\
+\text{s.t.}\quad & Ax+Gy\le b,\\
+& Bx\le b',\\
+& x\in\{0,1\}^n,\quad y\ge 0.
+\end{aligned}
+\]
+\vspace{2mm}
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.32\textwidth}
+\begin{block}{二进制变量 $x$}
+组合爆炸的来源，也是量子/退火/局部搜索最适合处理的部分。
+\end{block}
+\end{column}
+\begin{column}{0.32\textwidth}
+\begin{block}{连续变量 $y$}
+固定 $x$ 后是 LP，不需要离散化成 qubit。
+\end{block}
+\end{column}
+\begin{column}{0.32\textwidth}
+\begin{block}{约束耦合}
+$A,G,B$ 决定可行域，也决定 block 选择难度。
+\end{block}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{实例规模}
+\small
+\begin{tabularx}{\linewidth}{lrrrrY}
+\toprule
+实例 & $n$ & $p$ & $m_1$ & $m_2$ & 处理策略 \\
+\midrule
+公开 A & 15 & 5 & 5 & 1 & 二进制精确枚举 + LP。\\
+公开 B & 80 & 20 & 20 & 4 & MIQP-aware block heuristic。\\
+隐藏 1 & 15 & 5 & 5 & 1 & safe profile。\\
+隐藏 2 & 40 & 10 & 10 & 2 & seed23 cluster boost。\\
+隐藏 3 & 80 & 20 & 20 & 4 & seed23 cluster boost。\\
+隐藏 4 & 120 & 30 & 30 & 6 & seed23 cluster boost。\\
+隐藏 5 & 150 & 50 & 50 & 10 & route7++ balanced。\\
+\bottomrule
+\end{tabularx}
+\end{frame}
+
+\begin{frame}{为什么不能直接全量 QUBO}
+\small
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.31\textwidth}
+\begin{block}{连续变量离散化}
+每个 $y_j$ 若用 $r$ 位表示，就新增 $pr$ 个 bit；精度和 qubit 数直接冲突。
+\end{block}
+\end{column}
+\begin{column}{0.31\textwidth}
+\begin{block}{全局二进制空间}
+B 样例已有 $2^{80}$ 个二进制候选，隐藏 5 达到 $2^{150}$。
+\end{block}
+\end{column}
+\begin{column}{0.31\textwidth}
+\begin{block}{罚函数失真}
+penalty 太小会不可行，太大又让原始目标被约束惩罚淹没。
+\end{block}
+\end{column}
+\end{columns}
+\vspace{3mm}
+\begin{alertblock}{设计原则}
+把连续变量留给 LP，把量子/启发式搜索资源集中在二进制变量的高价值 block。
+\end{alertblock}
+\end{frame}
+
+\begin{frame}{固定 $x$ 后的连续子问题}
+\small
+一旦给定二进制候选 $x$，连续部分变成：
+\[
+\phi(x)=\max_y\ h^\top y,\quad Gy\le b-Ax,\quad y\ge 0.
+\]
+\vspace{2mm}
+\begin{block}{这一步的价值}
+\begin{itemize}
+  \item 不牺牲连续变量精度。
+  \item 直接用成熟 LP 求解器得到 $y$。
+  \item 同时得到可行性、原始目标值和对偶 cut advice。
+\end{itemize}
+\end{block}
+\begin{alertblock}{这也是项目的主判断}
+量子层不是整个优化器，而是离散候选生成器；最终答案必须回到原始 MIQP 上验证。
+\end{alertblock}
+\end{frame}
+
+\begin{frame}{成功标准}
+\small
+\begin{tabularx}{\linewidth}{p{3.2cm}Y}
+\toprule
+标准 & 项目中的落点 \\
+\midrule
+可行性 & \path{MiqpInstance.constraint_report()} 和 \path{verify_hidden_final.py}。\\
+目标值真实 & 用 $x^\top Qx+c^\top x+h^\top y$ 重算，不用 QUBO energy 代替。\\
+可复现 & seed、config、runtime、LP calls、结果 JSON 全部落盘。\\
+量子相关性 & block QUBO 可转 Ising，可接 QAOA / Aer / 退火 backend。\\
+工程稳定 & 测试、CLI、提交包、容器复算路径完整。\\
+\bottomrule
+\end{tabularx}
+\end{frame}
+
+\begin{frame}{一句话对照}
+\small
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.48\textwidth}
+\begin{block}{不采用}
+\begin{itemize}
+  \item 全量 MIQP $\rightarrow$ 全量 QUBO。
+  \item 连续变量粗粒度二进制化。
+  \item 只看 QUBO energy。
+  \item 单个量子线路直接产出最终解。
+\end{itemize}
+\end{block}
+\end{column}
+\begin{column}{0.48\textwidth}
+\begin{alertblock}{采用}
+\begin{itemize}
+  \item MIQP $\rightarrow$ binary block + continuous LP。
+  \item 小 block QUBO / Ising 候选生成。
+  \item repair + LP + original objective ranking。
+  \item seed/config portfolio 赛马。
+\end{itemize}
+\end{alertblock}
+\end{column}
+\end{columns}
+\end{frame}
+
+\section{算法主线}
+\sectionframe{三、算法主线}{QBB-MIQP：量子资源只打最关键的二进制块。}
+
+\begin{frame}{QBB-MIQP 总览}
+\centering
+\vspace{2mm}
+\resizebox{0.96\linewidth}{!}{%
+\begin{tikzpicture}[node distance=4.5mm]
+  \node[flowstage] (data) {\textbf{官方数据}\\[-0.5mm]\scriptsize \texttt{.npz}\\[-0.5mm]\scriptsize $Q,c,h,A,G,B$};
+  \node[flowstage, right=of data] (selector) {\textbf{结构化分块}\\[-0.5mm]\scriptsize 变量打分\\[-0.5mm]\scriptsize block pool};
+  \node[flowstage, right=of selector] (backend) {\textbf{小块后端}\\[-0.5mm]\scriptsize QUBO / Ising\\[-0.5mm]\scriptsize exact / SA / QAOA};
+  \node[flowstage, right=of backend] (verify) {\textbf{可行性验真}\\[-0.5mm]\scriptsize repair + LP($y$)\\[-0.5mm]\scriptsize 原始目标重算};
+  \node[flowstage, right=of verify] (best) {\textbf{输出与反馈}\\[-0.5mm]\scriptsize best feasible\\[-0.5mm]\scriptsize cut advice};
+
+  \draw[flowarrow] (data) -- (selector);
+  \draw[flowarrow] (selector) -- (backend);
+  \draw[flowarrow] (backend) -- (verify);
+  \draw[flowarrow] (verify) -- (best);
+  \draw[flowarrow] (best.south) .. controls +(0,-12mm) and +(0,-12mm) .. node[below, midway, font=\scriptsize, text=RouteBlue] {LP/cut 反馈下一轮 block} (selector.south);
+\end{tikzpicture}
+}
+\vspace{6mm}
+
+\begin{tikzpicture}[node distance=6mm]
+  \node[flowsummary] (split) {\textbf{1. 分解}\\[-0.2mm] 二进制 block 搜索\\连续变量保留为 LP};
+  \node[flowsummary, right=of split] (candidate) {\textbf{2. 候选}\\[-0.2mm] subQUBO / Ising / 退火\\QAOA-compatible backend};
+  \node[flowsummary, right=of candidate] (check) {\textbf{3. 验真}\\[-0.2mm] repair + continuous LP\\原始目标重算};
+\end{tikzpicture}
+\end{frame}
+
+\begin{frame}{block 子问题}
+\small
+给定当前 incumbent $\bar{x}$，选择 block $S$，只让 $z=x_S$ 变化：
+\[
+F_S(z)=z^\top Q_{SS}z+\ell_S^\top z+\text{const}.
+\]
+为了交给最小化 backend，构造：
+\[
+E_S(z)=-F_S(z)+\lambda_B\sum_r
+\left[\left(B_Sz+B_{\bar{S}}\bar{x}_{\bar{S}}-b'_r\right)_+\right]^2.
+\]
+\begin{block}{实现对应}
+\path{build_block_binary_problem()} 抽取 block 子问题，复用已有 QUBO builder 和求解器接口。
+\end{block}
+\end{frame}
+
+\begin{frame}{变量打分}
+\small
+\[
+\text{score}_i
+=w_o s_i^{obj}+w_q s_i^{couple}+w_m s_i^{mixed}+w_b s_i^{binary}.
+\]
+\vspace{1mm}
+\begin{tabularx}{\linewidth}{p{3.0cm}Y}
+\toprule
+分量 & 直觉 \\
+\midrule
+$s_i^{obj}$ & 变量自身对目标的边际贡献，包括 $c_i$ 和 $Q_{ii}$。\\
+$s_i^{couple}$ & 变量在 $Q$ 中与其他变量的耦合强度。\\
+$s_i^{mixed}$ & 变量对 $Ax+Gy\le b$ 连续可行域的影响。\\
+$s_i^{binary}$ & 变量在 $Bx\le b'$ 纯二进制约束中的压力。\\
+\bottomrule
+\end{tabularx}
+\vspace{2mm}
+\begin{alertblock}{设计动机}
+block 选择应保留“目标收益高、耦合强、约束影响大”的局部子图。
+\end{alertblock}
+\end{frame}
+
+\begin{frame}{block selector}
+\small
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.48\textwidth}
+\begin{block}{greedy selector}
+\begin{itemize}
+  \item 从最高分变量开始。
+  \item 按邻居耦合和约束关联加入变量。
+  \item 简单、稳定、可解释。
+\end{itemize}
+\end{block}
+\end{column}
+\begin{column}{0.48\textwidth}
+\begin{block}{affinity cluster}
+\begin{itemize}
+  \item 更重视强耦合变量簇。
+  \item 对稠密 $Q$ 可能更好。
+  \item 实验显示不总是占优。
+\end{itemize}
+\end{block}
+\end{column}
+\end{columns}
+\vspace{2mm}
+\begin{alertblock}{route7++}
+最终不是只选一个 block，而是生成 block pool：default、balanced、Q-heavy、constraint-heavy、cluster、cut-guided、destroy-repair。
+\end{alertblock}
+\end{frame}
+
+\begin{frame}{warm-start 与 fixing plan}
+\small
+\[
+m=c+\operatorname{diag}(Q)+2Q\bar{x}.
+\]
+\begin{itemize}
+  \item warm-start advisor 根据边际收益、约束释放量和二进制压力生成 $P(x_i=1)$。
+  \item 高置信变量可以固定，低置信变量留给 block backend 搜索。
+  \item 当前采用可解释线性策略，神经/GNN 接口保留为未来扩展。
+\end{itemize}
+\vspace{0.5mm}
+\centering
+\includegraphics[width=0.64\linewidth,height=0.30\textheight,keepaspectratio]{miqp_sample_B_warm_start_probabilities.png}
+\tightcaption{B 样例 warm-start probability：用于 ranking/fixing，不作为严格概率校准。}
+\end{frame}
+
+\begin{frame}{候选生成 portfolio}
+\small
+\begin{tabularx}{\linewidth}{p{3.2cm}Y}
+\toprule
+候选来源 & 角色 \\
+\midrule
+exact block solver & 小 block 上给高质量局部候选。\\
+simulated annealing & 中等 block 的随机化搜索基线。\\
+learning-guided sampler & 用结构特征排序、固定和 warm-start。\\
+QAOA-compatible backend & 把小 block QUBO 转 Ising 后生成量子线路候选。\\
+XY proxy / swap & 针对 cardinality 或选择约束保持可行邻域。\\
+destroy-repair / local branch & 跳出局部 incumbent，进行受控扰动。\\
+post polish & 主循环后对最佳解做 single flip、swap、augment。\\
+\bottomrule
+\end{tabularx}
+\end{frame}
+
+\begin{frame}{QAOA 在这里扮演什么角色}
+\small
+\[
+H_C=\alpha+\sum_i h_iZ_i+\sum_{i<j}J_{ij}Z_iZ_j
+\]
+\[
+|\psi(\gamma,\beta)\rangle=
+\prod_{\ell=1}^{p}e^{-i\beta_\ell\sum_iX_i}e^{-i\gamma_\ell H_C}|+\rangle^{\otimes |S|}.
+\]
+\begin{block}{在本项目中}
+\begin{itemize}
+  \item QAOA 不跑全局 80/150 bit 问题。
+  \item 它只跑小 block，作为可插拔候选生成器。
+  \item 线路元数据包括 qubit 数、RZ/RZZ/RX 门数、Hamiltonian 项。
+\end{itemize}
+\end{block}
+\begin{alertblock}{适合被问时回答}
+QAOA 的作用不是替代整个 MIQP solver，而是在高价值离散子空间提供量子候选。
+\end{alertblock}
+\end{frame}
+
+\begin{frame}{repair 和 augment}
+\small
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.48\textwidth}
+\begin{block}{repair}
+\begin{itemize}
+  \item 当 $Bx>b'$ 时，删除低价值 active bit。
+  \item 保证纯二进制约束不明显违反。
+  \item 所有候选仍要交给 LP 检查。
+\end{itemize}
+\end{block}
+\end{column}
+\begin{column}{0.48\textwidth}
+\begin{block}{augment}
+\begin{itemize}
+  \item repair 后如果容量没用满，尝试加回高价值变量。
+  \item 评分综合二次边际、线性收益和 warm-start。
+  \item 只加正收益变量，避免盲目填满。
+\end{itemize}
+\end{block}
+\end{column}
+\end{columns}
+\vspace{2mm}
+\begin{alertblock}{为什么重要}
+B 类约束下，过度保守的 repair 会丢掉收益；augment 是 route7++ 提升 B 类实例的关键增强之一。
+\end{alertblock}
+\end{frame}
+
+\begin{frame}{连续 LP 与 cut advice}
+\small
+连续子问题对偶：
+\[
+\min_\pi (b-Ax)^\top \pi,\quad G^\top\pi\ge h,\quad \pi\ge 0.
+\]
+可形成对连续贡献的上界型信号：
+\[
+\theta \le b^\top\pi-(A^\top\pi)^\top x.
+\]
+\begin{block}{项目里的用法}
+\begin{itemize}
+  \item 当前不是把 cut 强行加入主问题，而是记录成 cut advice。
+  \item cut advice 会影响下一轮 block 选择和候选排序。
+  \item JSON 中保留 LP 解、可行性、对偶信息和诊断。
+\end{itemize}
+\end{block}
+\end{frame}
+
+\begin{frame}{预算控制}
+\small
+\begin{tabularx}{\linewidth}{p{3.0cm}Y}
+\toprule
+预算参数 & 作用 \\
+\midrule
+\path{max_block_size} & 控制每次送入 QUBO/Ising backend 的 bit 数。\\
+\path{candidate_limit} & 控制候选数量，避免 LP 调用爆炸。\\
+\path{max_lp_evals} & 控制连续 LP 验真次数，是最重要的时间阀门。\\
+\path{time_limit_sec} & 控制端到端运行时间。\\
+\path{blocks_per_iteration} & 决定每轮探索多个 block 的宽度。\\
+\path{post_polish_rounds} & 决定主循环后的局部精修强度。\\
+\bottomrule
+\end{tabularx}
+\vspace{2mm}
+\begin{alertblock}{工程点}
+LP cache 会避免重复 $x$ 候选被多次求解，提升多 seed / 多配置赛马效率。
+\end{alertblock}
+\end{frame}
+
+\begin{frame}{route7++ 主循环}
+\small
+\begin{enumerate}
+  \item 初始化结构化 warm start，并 repair 到 $Bx\le b'$。
+  \item 生成 block pool，按结构分数、cut、历史 improvement 排序。
+  \item 对每个 block 构造 subQUBO 或 objective-only QAOA block。
+  \item 组合 exact、SA、learning-guided、QAOA-compatible、swap、destroy-repair 候选。
+  \item 对候选排序、去重、repair、augment。
+  \item 用 LP cache 求连续子问题，按原始目标更新 incumbent。
+  \item 写入 block trace、cut advice 和诊断。
+  \item 主循环结束后做受控 polish。
+\end{enumerate}
+\end{frame}
+
+\begin{frame}{Auto SOTA profile}
+\small
+\begin{tabularx}{\linewidth}{p{2.2cm}Y}
+\toprule
+profile & 用途 \\
+\midrule
+quick & 数据刚到时冒烟，少 seed、少配置，检查链路是否跑通。\\
+safe & 默认主线，包含 balanced、cluster、wide、Q-heavy、B-heavy 等非神经配置。\\
+deep & 时间充足时加大 block、polish 和 seed/config portfolio。\\
+\bottomrule
+\end{tabularx}
+\vspace{3mm}
+\begin{block}{最终提交策略}
+每个实例跑多个配置，只保留最高可行目标值；不把神经模型放进默认主线，避免 A/B 标签太少导致过拟合。
+\end{block}
+\end{frame}
+
+\begin{frame}{核心代码地图}
+\scriptsize
+\begin{tabularx}{\linewidth}{p{4.0cm}Y}
+\toprule
+文件 & 责任 \\
+\midrule
+\path{src/quantum_hackathon/miqp/model.py} & MIQP 数据结构、目标函数、约束报告、诊断。\\
+\path{src/quantum_hackathon/miqp/loader.py} & 官方 \path{.npz} 数据读取。\\
+\path{src/quantum_hackathon/miqp/route7.py} & block selector、warm-start、LP、cut、候选组合、polish。\\
+\path{src/quantum_hackathon/miqp_cli.py} & A/B 样例和单实例 CLI。\\
+\path{scripts/miqp_auto_sota.py} & 多 seed、多配置赛马。\\
+\path{scripts/run_miqp_hidden_demo.py} & 五个隐藏实例的一键规模感知入口。\\
+\path{scripts/verify_hidden_final.py} & 提交 NPZ 和诊断 JSON 的重算验证。\\
+\bottomrule
+\end{tabularx}
+\end{frame}
+
+\begin{frame}{正确性守门}
+\small
+\begin{alertblock}{最终答案的三道门}
+\begin{enumerate}
+  \item \textbf{二进制约束}：repair/augment 后检查 $Bx\le b'$。
+  \item \textbf{连续可行性}：固定 $x$ 后求 LP，检查 $Ax+Gy\le b$。
+  \item \textbf{目标重算}：用原始 MIQP 目标函数，不用 QUBO energy。
+\end{enumerate}
+\end{alertblock}
+\begin{block}{为什么这点很重要}
+在有 penalty 的量子优化里，raw energy 最低的样本未必是业务可行解。本项目所有 solver 输出都统一走 postprocess 和 feasibility check。
+\end{block}
+\end{frame}
+
+\begin{frame}{与七条路线的关系}
+\scriptsize
+\begin{tabularx}{\linewidth}{p{3.2cm}p{2.0cm}Y}
+\toprule
+路线 & 最终角色 & 说明 \\
+\midrule
+QUBO / Ising & 底座 & block 子问题和 QAOA 线路的共同表示。\\
+约束处理 & 守门 & penalty、repair、feasibility-first ranking。\\
+退火 & backend & 候选生成和 baseline。\\
+QAOA & backend / 展示 & 小 block 量子线路和基线。\\
+Constrained mixer & proxy / 后续 & XY swap 思想进入候选生成，完整线路作为后续方向。\\
+Hybrid MIQP & 主干 & $x$ 由离散 backend，$y$ 由 LP。\\
+Learning-guided & 增强接口 & 当前用可解释线性策略，神经模型保留为离线消融。\\
+\bottomrule
+\end{tabularx}
+\end{frame}
+
+\section{实验结果}
+\sectionframe{四、实验结果}{公开样例证明上限，隐藏验证证明链路，baseline 证明不是讲故事。}
+
+\begin{frame}{公开 A/B 总表}
+\small
+\begin{tabularx}{\linewidth}{lrrrrY}
+\toprule
+实例 & 规模 & 本方案 & 官方最优 & gap & 模式 \\
+\midrule
+A & $n=15,p=5$ & 106.094636 & 106.094636 & 0.00\% & exact + LP。\\
+B & $n=80,p=20$ & 610.266639 & 610.266639 & 0.00\% & block heuristic。\\
+\bottomrule
+\end{tabularx}
+\vspace{3mm}
+\begin{alertblock}{关键解释}
+A 证明建模和 LP 补全是正确的；B 证明结构化 block portfolio 能在不能全枚举的规模上达到公开最优。
+\end{alertblock}
+\end{frame}
+
+\begin{frame}{横向 baseline 结论}
+\scriptsize
+\begin{tabular}{lrrrr}
+\toprule
+B 样例方法 & 目标值 & gap & 候选/搜索规模 & 备注 \\
+\midrule
+marginal greedy & 544.475466 & 10.78\% & 80 evals & 快，但局部。\\
+genetic repair LP & 565.761894 & 7.29\% & 146 evals & 最强传统启发式之一。\\
+block SA LP & 492.115433 & 19.36\% & 44 evals & block 退火候选。\\
+block QAOA LP & 488.070768 & 20.02\% & 10 qubits & 量子线路基线。\\
+\textbf{QBB-MIQP} & \textbf{610.266639} & \textbf{0.00\%} & \textbf{768 evals} & \textbf{达到官方最优。}\\
+\bottomrule
+\end{tabular}
+\vspace{3mm}
+\begin{block}{读表方式}
+QBB-MIQP 不是最快的，但它用更多受控 LP 验真换来最优目标值；这符合“比赛求解质量优先”的场景。
+\end{block}
+\end{frame}
+
+\begin{frame}{A/B gap 与 B 样例目标值}
+\scriptsize
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.49\textwidth}
+\centering
+\includegraphics[width=\linewidth,height=0.50\textheight,keepaspectratio]{cross_instance_gap.png}
+\tightcaption{跨样例 gap：A/B 的 QBB-MIQP gap 均为 0\%。}
+\end{column}
+\begin{column}{0.49\textwidth}
+\centering
+\includegraphics[width=\linewidth,height=0.50\textheight,keepaspectratio]{miqp_sample_B_objective_by_method.png}
+\tightcaption{B 样例目标值：虚线为官方最优。}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{为什么 block 重要}
+\scriptsize
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.50\textwidth}
+\centering
+\includegraphics[width=\linewidth,height=0.50\textheight,keepaspectratio]{miqp_sample_B_block_coupling_heatmap.png}
+\tightcaption{B 样例选中 block 的 $Q_{SS}$ 耦合热图。}
+\end{column}
+\begin{column}{0.46\textwidth}
+\begin{block}{观察}
+\begin{itemize}
+  \item 变量间耦合不是均匀噪声。
+  \item 强耦合变量需要一起被搜索。
+  \item 如果把 block 切错，小量子/退火 backend 很难产生有价值候选。
+\end{itemize}
+\end{block}
+\begin{alertblock}{结论}
+QBB-MIQP 的优势首先来自“把搜索表面选准”，不是来自单次更深线路。
+\end{alertblock}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{selector 消融}
+\scriptsize
+\centering
+\includegraphics[width=0.74\linewidth,height=0.50\textheight,keepaspectratio]{selector_ablation_gap.png}
+\tightcaption{短预算下不同 selector 权重和聚类策略的 gap。}
+\vspace{2mm}
+\begin{block}{结论}
+A 对 selector 不敏感，B 对 selector 明显敏感；balanced greedy 在短预算下表现较好，但 cluster 并不总是更优。这支持“配置赛马”而不是固定一组权重。
+\end{block}
+\end{frame}
+
+\begin{frame}{质量-时间和资源画像}
+\scriptsize
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.49\textwidth}
+\centering
+\includegraphics[width=\linewidth,height=0.50\textheight,keepaspectratio]{miqp_sample_B_gap_runtime_frontier.png}
+\tightcaption{B 样例质量-时间前沿。}
+\end{column}
+\begin{column}{0.49\textwidth}
+\centering
+\includegraphics[width=\linewidth,height=0.50\textheight,keepaspectratio]{miqp_sample_B_resource_profile.png}
+\tightcaption{B 样例资源画像。}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{隐藏验证总表}
+\scriptsize
+\begin{tabularx}{\linewidth}{lrrrrrY}
+\toprule
+实例 & 目标值 & LP 调用 & runtime(s) & $x$ ones & $y$ nonzero & 状态 \\
+\midrule
+test 1 & 157.585995 & 28032 & 42.99 & 12 & 2 & 可行。\\
+test 2 & 459.864903 & 1057 & 110.60 & 31 & 2 & 可行。\\
+test 3 & 765.690515 & 1684 & 168.73 & 48 & 7 & 可行。\\
+test 4 & 636.175569 & 1371 & 245.63 & 36 & 7 & 可行。\\
+test 5 & 842.345737 & 554 & 85.44 & 49 & 15 & 可行。\\
+\bottomrule
+\end{tabularx}
+\vspace{2mm}
+\begin{alertblock}{注意}
+官方没有给隐藏集最优值，所以这里只报告重算目标值、可行性和约束违反量，不报告 gap。
+\end{alertblock}
+\end{frame}
+
+\begin{frame}{隐藏验证可行性}
+\small
+\begin{tabularx}{\linewidth}{lrrr}
+\toprule
+实例 & objective delta & mixed max violation & binary max violation \\
+\midrule
+test 1 & 0.0 & $4.00\times 10^{-15}$ & 0.0 \\
+test 2 & 0.0 & $3.55\times 10^{-15}$ & 0.0 \\
+test 3 & 0.0 & $1.92\times 10^{-13}$ & 0.0 \\
+test 4 & 0.0 & $3.55\times 10^{-14}$ & 0.0 \\
+test 5 & 0.0 & $6.94\times 10^{-12}$ & 0.0 \\
+\bottomrule
+\end{tabularx}
+\vspace{3mm}
+\begin{block}{解释}
+这些违反量在数值 LP 容差范围内；\path{stored_objective} 与重算 objective 完全一致。
+\end{block}
+\end{frame}
+
+\begin{frame}{隐藏验证收敛曲线}
+\scriptsize
+\centering
+\includegraphics[width=0.82\linewidth,height=0.54\textheight,keepaspectratio]{sota_loss_curves.png}
+\tightcaption{纵轴是相对最终 incumbent 的剩余 loss，横轴是 LP 调用进度。}
+\vspace{0.5mm}
+\begin{block}{读图}
+test 2/3/5 较早收敛到最终 incumbent；test 4 需要 polish 阶段进一步提升，说明后处理不是装饰，而是真正贡献了解质量。
+\end{block}
+\end{frame}
+
+\begin{frame}{容器复现与测试}
+\small
+\begin{block}{仓库记录的复现信息}
+\begin{itemize}
+  \item qiskit 容器中 Python 版本：3.12.3。
+  \item 源码包干净解压后安装、测试、A/B 样例复算完成。
+  \item 完整测试记录：\textbf{56 passed}。
+  \item 公开样例重算：A 为 106.094636140193074，B 为 610.266638604722743。
+\end{itemize}
+\end{block}
+\begin{alertblock}{复现结论}
+这说明结果不是本地临时状态，而是可以在比赛环境中复现的提交链路。
+\end{alertblock}
+\end{frame}
+
+\begin{frame}{结果文件的可追溯性}
+\scriptsize
+\begin{tabularx}{\linewidth}{p{4.2cm}Y}
+\toprule
+文件 & 作用 \\
+\midrule
+\path{results/miqp_sample_A_route7.json} & A 样例完整诊断。\\
+\path{results/miqp_sample_B_route7.json} & B 样例完整诊断。\\
+\path{results/baseline_study/miqp_baseline_study.csv} & 横向 baseline 原始数值。\\
+\path{results/selector_ablation/selector_ablation.csv} & selector 消融原始数值。\\
+\path{results/hidden_final/hidden_final_summary.json} & 隐藏五例结果汇总。\\
+\path{results/hidden_final/verify_miqpscale.json} & 提交 NPZ 的重算验证。\\
+\path{submission/} & 最终提交包和报告材料。\\
+\bottomrule
+\end{tabularx}
+\end{frame}
+
+\section{工程与讨论}
+\sectionframe{五、工程与讨论}{工程可信性、量子角色与后续研究边界。}
+
+\begin{frame}{材料与复现入口}
+\small
+\begin{enumerate}
+  \item 求解说明 PDF：数学建模、workflow、baseline 和最终结果。
+  \item \path{results/miqp_route7_summary.md}：公开 A/B 结果汇总。
+  \item \path{results/hidden_final/hidden_final_summary.md}：隐藏五例结果汇总。
+  \item \path{src/quantum_hackathon/miqp/route7.py}：QBB-MIQP 主循环与核心模块。
+  \item \path{scripts/verify_hidden_final.py}：提交 NPZ 与诊断 JSON 的重算验证。
+\end{enumerate}
+\end{frame}
+
+\begin{frame}{量子模块定位}
+\small
+\begin{alertblock}{核心定位}
+量子性体现在 QUBO/Ising 建模、block QAOA 线路、QAOA-compatible backend、退火/量子启发采样接口，以及 constrained mixer / warm-start 的设计。最终工程选择把它们放在小 block 上，而不是全局硬跑。
+\end{alertblock}
+\begin{block}{资源边界}
+\begin{itemize}
+  \item 近端量子设备和 statevector 模拟都不适合全局 80--150 bit。
+  \item 真正合理的角色是 discrete oracle：在关键二进制子空间中生成候选。
+  \item 业务可行性仍由经典 LP 和约束检查兜底。
+\end{itemize}
+\end{block}
+\end{frame}
+
+\begin{frame}{Learning-guided 路线定位}
+\small
+\begin{block}{已完成的准备}
+\begin{itemize}
+  \item 有 QUBO graph exporter。
+  \item 有 JSONL dataset builder。
+  \item 有 warm-start model interface。
+  \item 有非神经线性 block scorer 和 synthetic suite。
+\end{itemize}
+\end{block}
+\begin{alertblock}{最终主线选择}
+A/B 真实标签太少，临场 synthetic 数据可能和隐藏集分布偏移。比赛提交阶段，稳健的非神经 route7++ 比临时神经模型更可靠。
+\end{alertblock}
+\end{frame}
+
+\begin{frame}{最优性与可行性声明}
+\small
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.48\textwidth}
+\begin{block}{公开 A/B}
+\begin{itemize}
+  \item A 可由小规模 exact + LP 验证。
+  \item B 达到官方给定最优值。
+  \item 因此可报告 0\% gap。
+\end{itemize}
+\end{block}
+\end{column}
+\begin{column}{0.48\textwidth}
+\begin{block}{隐藏五例}
+\begin{itemize}
+  \item 官方没有提供最优值。
+  \item 只能报告重算目标、可行性和收敛过程。
+  \item 不应声称全局最优。
+\end{itemize}
+\end{block}
+\end{column}
+\end{columns}
+\vspace{2mm}
+\begin{alertblock}{声明边界}
+公开样例达到官方最优；隐藏验证集给出可复算可行解。全局最优性只在有 reference 或 exact 可承受时声明。
+\end{alertblock}
+\end{frame}
+
+\begin{frame}{代码质量审阅：做得好的地方}
+\small
+\begin{itemize}
+  \item 模块边界比较清楚：model、loader、route7、CLI、scripts、results 各有职责。
+  \item 输出非常重视可追溯性：JSON、NPZ、Markdown、CSV、图片都保留。
+  \item 算法文档和代码能对应：求解说明、速读、requirements、README 互相补充。
+  \item 测试覆盖不仅有 toy demo，也覆盖 MIQP route7、SOTA 脚本和 pretraining pipeline。
+  \item 没有把真实 QPU、GPU 或 GNN 过度包装成已完成能力，边界表述比较诚实。
+\end{itemize}
+\end{frame}
+
+\begin{frame}{代码质量审阅：后续要补的地方}
+\small
+\begin{itemize}
+  \item 远程执行配置需要完全环境变量化和脱敏，避免凭据进入源码。
+  \item \path{route7.py} 已经很大，后续可拆成 selector、candidate、lp、polish、trace 子模块。
+  \item 前端任务流和核心 CLI 的边界需要再收敛，避免演示层和求解层互相缠绕。
+  \item 隐藏集没有 reference，应补更多 synthetic/perturbed benchmark 来做鲁棒性分析。
+  \item QAOA backend 当前更多是接口和基线，后续要补更系统的参数、depth、shots 消融。
+\end{itemize}
+\end{frame}
+
+\begin{frame}{当前限制}
+\small
+\begin{tabularx}{\linewidth}{p{3.3cm}Y}
+\toprule
+限制 & 影响 \\
+\midrule
+没有真实 QPU 调用 & 只能说量子可插拔和量子模拟/量子启发，不能说硬件量子优势。\\
+隐藏集无最优值 & 只能报告可行目标和复算，不报告 hidden gap。\\
+block selector 仍是启发式 & 质量依赖 profile、预算和实例结构。\\
+warm-start 未严格校准 & 概率更像 ranking signal，不是可靠置信度。\\
+route7 单文件较重 & 研究迭代快，但长期维护需要拆分。\\
+\bottomrule
+\end{tabularx}
+\end{frame}
+
+\begin{frame}{最值得继续做的研究}
+\small
+\begin{enumerate}
+  \item \textbf{learned selector}：用 block trace 学习“单位 LP 调用提升量”，替代手工权重。
+  \item \textbf{cut 更深融合}：把 LP 对偶信息更直接地加入 block 生成和候选代理排序。
+  \item \textbf{QAOA 系统消融}：比较 $p=1,2,3$、shots、warm-start 参数和不同 block。
+  \item \textbf{constrained mixer 实装}：把 XY proxy 升级为可运行的 hard-constraint ansatz。
+  \item \textbf{鲁棒 benchmark}：围绕官方维度生成分布邻近 synthetic MIQP，做跨 seed 和跨结构测试。
+  \item \textbf{工程拆分}：把 route7++ 从比赛脚本整理为可复用研究框架。
+\end{enumerate}
+\end{frame}
+
+\begin{frame}{可以留给导师讨论的问题}
+\small
+\begin{enumerate}
+  \item 在 MIQP 中，block selector 是否能和 Benders cut 形成更标准的理论框架？
+  \item 对 $Q,A,B,G$ 的结构特征，哪些适合作为 learned selector 的输入？
+  \item QAOA 在 block oracle 中的评价指标应该是 energy、可行候选比例，还是最终 LP 后 objective？
+  \item 如果接真实量子硬件，应优先跑哪些 block，如何控制 embedding 和噪声？
+  \item 这个框架是否可以迁移到 unit commitment、portfolio 或 routing 等更具体场景？
+\end{enumerate}
+\end{frame}
+
+\begin{frame}{最终收束}
+\small
+\begin{alertblock}{一句话}
+本项目的核心贡献，是把一个看似“直接 QUBO 化”的量子优化赛题，重构成了一个可复现、可解释、可验证的 MIQP-aware 量子-经典混合求解框架。
+\end{alertblock}
+\begin{block}{三层价值}
+\begin{itemize}
+  \item \textbf{工程价值}：代码、测试、容器复现、提交包完整。
+  \item \textbf{算法价值}：block-QUBO + LP + repair + cut 的闭环有效。
+  \item \textbf{研究价值}：为 learned selector、constrained mixer 和 QAOA block oracle 留出清晰接口。
+\end{itemize}
+\end{block}
+\centering
+\Large\textbf{不赌全局大线路，只打最关键的二进制块。}
+\end{frame}
+
+\appendix
+\section{附录}
+\sectionframe{附录}{复现命令和可备查细节。}
+
+\begin{frame}{复现命令：公开样例}
+\scriptsize
+\begin{block}{A 样例}
+\path{python -m quantum_hackathon.miqp_cli}
+\begin{itemize}
+  \item input: \path{miqp_sample_A.npz}；output: \path{results/miqp_sample_A_route7.json}。
+  \item key flags: \path{--exact-binary-limit 15 --max-block-size 12 --candidate-limit 64}。
+\end{itemize}
+\end{block}
+\begin{block}{B 样例核心参数}
+\begin{itemize}
+  \item \path{--max-block-size 20 --candidate-limit 192 --max-iterations 8 --seed 11}。
+  \item \path{--block-pool --blocks-per-iteration 3 --candidate-budget-per-block 64}。
+  \item \path{--max-lp-evals 800 --qaoa-max-qubits 0 --post-polish-rounds 2}。
+\end{itemize}
+\end{block}
+\end{frame}
+
+\begin{frame}{复现命令：隐藏验证}
+\scriptsize
+\begin{block}{批量求解}
+\path{python scripts/run_miqp_hidden_demo.py}
+\begin{itemize}
+  \item \path{--input-dir data/final_tests}
+  \item \path{--output-dir results/hidden_demo}
+\end{itemize}
+\end{block}
+\begin{block}{验证提交 NPZ}
+\path{python scripts/verify_hidden_final.py}
+\begin{itemize}
+  \item \path{--predictions-dir .}
+  \item \path{--output-json results/hidden_final/verify_miqpscale.json}
+\end{itemize}
+\end{block}
+\begin{block}{验证诊断目录}
+\path{python scripts/verify_hidden_final.py --results-dir results/hidden_final}
+\end{block}
+\end{frame}
+
+\begin{frame}{复现命令：实验图表}
+\scriptsize
+\begin{block}{横向 baseline}
+\path{python scripts/miqp_baseline_study.py}
+\begin{itemize}
+  \item inputs: A/B official samples；output: \path{baseline_study}。
+  \item key flags: \path{--qaoa-block-size 10 --qaoa-shots 160 --meta-iterations 8}。
+\end{itemize}
+\end{block}
+\begin{block}{selector 消融}
+\path{python scripts/miqp_selector_ablation.py}
+\begin{itemize}
+  \item output: \path{selector_ablation}。
+  \item key flags: \path{--max-block-size 16 --max-iterations 2 --candidate-limit 48}。
+\end{itemize}
+\end{block}
+\end{frame}
+
+\begin{frame}{报告中可引用的最终数字}
+\scriptsize
+\begin{tabularx}{\linewidth}{p{3.4cm}Y}
+\toprule
+项目 & 数字 \\
+\midrule
+公开 A 目标值 & 106.094636，官方最优 106.094636，gap 0.00\%。\\
+公开 B 目标值 & 610.266639，官方最优 610.266639，gap 0.00\%。\\
+B 强传统启发式 & genetic repair LP：565.761894，gap 7.29\%。\\
+B block-QAOA 基线 & 488.070768，gap 20.02\%，10 qubits。\\
+隐藏五例 & 157.585995 / 459.864903 / 765.690515 / 636.175569 / 842.345737。\\
+隐藏最大约束违反 & mixed 最大约 $6.94\times10^{-12}$，binary 均为 0。\\
+测试 & qiskit 容器记录 56 passed。\\
+\bottomrule
+\end{tabularx}
+\end{frame}
+
+\begin{frame}{参考材料}
+\small
+\begin{itemize}
+  \item Glover, Kochenberger, Du: QUBO tutorial。
+  \item Lucas: Ising formulations of many NP problems。
+  \item Farhi, Goldstone, Gutmann: QAOA。
+  \item Hadfield et al.: Quantum alternating operator ansatz。
+  \item Egger et al.: Warm-starting quantum optimization。
+  \item Benders: mixed-variables programming partitioning。
+  \item Braine et al.; Gambella and Simonetto: hybrid quantum-classical mixed binary optimization。
+\end{itemize}
+\end{frame}
+
+\end{document}
